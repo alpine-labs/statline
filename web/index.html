@@ -33,6 +33,14 @@
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
+  <script>
+    // Force HTML renderer for broad browser compatibility (Firefox, Safari, etc.)
+    window.addEventListener('load', function() {
+      _flutter.loader.load({
+        config: { renderer: "html" }
+      });
+    });
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
