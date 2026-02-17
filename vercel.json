@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "buildCommand": null,
+  "outputDirectory": "build/web",
+  "framework": null,
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}

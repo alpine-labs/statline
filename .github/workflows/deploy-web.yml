@@ -1,0 +1,61 @@
+name: Deploy to Vercel
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  FLUTTER_VERSION: "3.27.4"
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Run tests
+        run: flutter test
+
+      - name: Build web
+        run: flutter build web --release --no-tree-shake-icons
+
+      - name: Prepare Vercel output
+        run: |
+          mkdir -p .vercel/output/static
+          cp -r build/web/* .vercel/output/static/
+          echo '{"version":3,"routes":[{"handle":"filesystem"},{"src":"/(.*)", "dest":"/index.html"}]}' > .vercel/output/config.json
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+
+      # Preview deploy for PRs
+      - name: Deploy Preview to Vercel
+        if: github.event_name == 'pull_request'
+        run: vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      # Production deploy for pushes to main
+      - name: Deploy Production to Vercel
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
