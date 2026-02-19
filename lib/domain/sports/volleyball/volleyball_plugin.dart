@@ -49,17 +49,17 @@ class VolleyballPlugin extends SportPlugin {
     if (totalSets == 0) totalSets = 1;
 
     final kills = (totals['kills'] as num?)?.toInt() ?? 0;
-    final aces = (totals['aces'] as num?)?.toInt() ?? 0;
+    final aces = (totals['serviceAces'] as num?)?.toInt() ?? 0;
     final digs = (totals['digs'] as num?)?.toInt() ?? 0;
-    final totalBlocks = (totals['total_blocks'] as num?)?.toInt() ?? 0;
-    final attackErrors = (totals['attack_errors'] as num?)?.toInt() ?? 0;
-    final attackAttempts = (totals['attack_attempts'] as num?)?.toInt() ?? 0;
-    final serveErrors = (totals['serve_errors'] as num?)?.toInt() ?? 0;
+    final totalBlocks = (totals['totalBlocks'] as num?)?.toInt() ?? 0;
+    final attackErrors = (totals['errors'] as num?)?.toInt() ?? 0;
+    final attackAttempts = (totals['totalAttempts'] as num?)?.toInt() ?? 0;
+    final serveErrors = (totals['serviceErrors'] as num?)?.toInt() ?? 0;
     final servesTotal =
-        aces + serveErrors + ((totals['serves_in_play'] as num?)?.toInt() ?? 0);
-    final passRatingTotal = (totals['pass_rating'] as num?)?.toDouble() ?? 0.0;
-    final pass3Count = (totals['pass_3_count'] as num?)?.toInt() ?? 0;
-    final passAttempts = (totals['pass_attempts'] as num?)?.toInt() ?? 0;
+        aces + serveErrors + ((totals['servesInPlay'] as num?)?.toInt() ?? 0);
+    final passRatingTotal = (totals['passRating'] as num?)?.toDouble() ?? 0.0;
+    final pass3Count = (totals['pass3Count'] as num?)?.toInt() ?? 0;
+    final passAttempts = (totals['passAttempts'] as num?)?.toInt() ?? 0;
     final points = (totals['points'] as num?)?.toDouble() ?? 0.0;
 
     return {
@@ -87,39 +87,39 @@ class VolleyballPlugin extends SportPlugin {
             key: 'games_played', label: 'Games Played', shortLabel: 'GP', format: 'int'),
         StatColumn(key: 'kills', label: 'Kills', shortLabel: 'K', format: 'int'),
         StatColumn(
-            key: 'attack_errors', label: 'Errors', shortLabel: 'E', format: 'int'),
+            key: 'errors', label: 'Errors', shortLabel: 'E', format: 'int'),
         StatColumn(
-            key: 'attack_attempts',
+            key: 'totalAttempts',
             label: 'Total Attacks',
             shortLabel: 'TA',
             format: 'int'),
         StatColumn(
-            key: 'hitting_pct',
+            key: 'hittingPercentage',
             label: 'Hitting %',
             shortLabel: 'Hit%',
             format: 'decimal3'),
         StatColumn(
             key: 'assists', label: 'Assists', shortLabel: 'A', format: 'int'),
         StatColumn(
-            key: 'aces', label: 'Service Aces', shortLabel: 'SA', format: 'int'),
+            key: 'serviceAces', label: 'Service Aces', shortLabel: 'SA', format: 'int'),
         StatColumn(
-            key: 'serve_errors',
+            key: 'serviceErrors',
             label: 'Serve Errors',
             shortLabel: 'SE',
             format: 'int'),
         StatColumn(key: 'digs', label: 'Digs', shortLabel: 'D', format: 'int'),
         StatColumn(
-            key: 'block_solos',
+            key: 'blockSolos',
             label: 'Block Solos',
             shortLabel: 'BS',
             format: 'int'),
         StatColumn(
-            key: 'block_assists',
+            key: 'blockAssists',
             label: 'Block Assists',
             shortLabel: 'BA',
             format: 'int'),
         StatColumn(
-            key: 'total_blocks',
+            key: 'totalBlocks',
             label: 'Total Blocks',
             shortLabel: 'TB',
             format: 'int'),

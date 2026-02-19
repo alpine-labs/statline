@@ -36,29 +36,29 @@ class ActionPalette extends StatelessWidget {
   });
 
   static const _quickActions = [
-    ActionDef(label: 'Kill', category: 'attack', type: 'attack', result: 'kill', icon: Icons.flash_on, tone: ActionTone.positive, scoreChange: 1),
-    ActionDef(label: 'Error', category: 'attack', type: 'attack', result: 'error', icon: Icons.error_outline, tone: ActionTone.negative, scoreChange: -1),
+    ActionDef(label: 'Kill', category: 'attack', type: 'kill', result: 'kill', icon: Icons.flash_on, tone: ActionTone.positive, scoreChange: 1),
+    ActionDef(label: 'Error', category: 'attack', type: 'attack_error', result: 'error', icon: Icons.error_outline, tone: ActionTone.negative, scoreChange: -1),
     ActionDef(label: 'Dig', category: 'defense', type: 'dig', result: 'success', icon: Icons.sports, tone: ActionTone.neutral),
-    ActionDef(label: 'Assist', category: 'setting', type: 'assist', result: 'success', icon: Icons.handshake, tone: ActionTone.positive),
-    ActionDef(label: 'Block', category: 'block', type: 'block', result: 'solo', icon: Icons.front_hand, tone: ActionTone.positive, scoreChange: 1),
-    ActionDef(label: 'Ace', category: 'serve', type: 'serve', result: 'ace', icon: Icons.star, tone: ActionTone.positive, scoreChange: 1),
-    ActionDef(label: 'Srv Err', category: 'serve', type: 'serve', result: 'error', icon: Icons.close, tone: ActionTone.negative, scoreChange: -1),
-    ActionDef(label: 'Opp Err', category: 'opponent', type: 'error', result: 'error', icon: Icons.celebration, tone: ActionTone.positive, scoreChange: 1),
+    ActionDef(label: 'Assist', category: 'setting', type: 'set_assist', result: 'success', icon: Icons.handshake, tone: ActionTone.positive),
+    ActionDef(label: 'Block', category: 'block', type: 'block_solo', result: 'solo', icon: Icons.front_hand, tone: ActionTone.positive, scoreChange: 1),
+    ActionDef(label: 'Ace', category: 'serve', type: 'ace', result: 'ace', icon: Icons.star, tone: ActionTone.positive, scoreChange: 1),
+    ActionDef(label: 'Srv Err', category: 'serve', type: 'serve_error', result: 'error', icon: Icons.close, tone: ActionTone.negative, scoreChange: -1),
+    ActionDef(label: 'Opp Err', category: 'opponent', type: 'opp_error', result: 'error', icon: Icons.celebration, tone: ActionTone.positive, scoreChange: 1),
   ];
 
   static const _detailedExtraActions = [
-    ActionDef(label: 'Atk Blk', category: 'attack', type: 'attack', result: 'blocked', icon: Icons.block, tone: ActionTone.negative, scoreChange: -1),
-    ActionDef(label: '0 Atk', category: 'attack', type: 'attack', result: 'zero', icon: Icons.exposure_zero, tone: ActionTone.neutral),
-    ActionDef(label: 'Blk Ast', category: 'block', type: 'block', result: 'assist', icon: Icons.people, tone: ActionTone.positive, scoreChange: 1),
-    ActionDef(label: 'Blk Err', category: 'block', type: 'block', result: 'error', icon: Icons.warning, tone: ActionTone.negative, scoreChange: -1),
-    ActionDef(label: 'Pass 3', category: 'reception', type: 'pass', result: '3', icon: Icons.looks_3, tone: ActionTone.positive),
-    ActionDef(label: 'Pass 2', category: 'reception', type: 'pass', result: '2', icon: Icons.looks_two, tone: ActionTone.neutral),
-    ActionDef(label: 'Pass 1', category: 'reception', type: 'pass', result: '1', icon: Icons.looks_one, tone: ActionTone.neutral),
-    ActionDef(label: 'Pass 0', category: 'reception', type: 'pass', result: '0', icon: Icons.exposure_zero, tone: ActionTone.negative),
-    ActionDef(label: 'Dig Err', category: 'defense', type: 'dig', result: 'error', icon: Icons.do_not_disturb, tone: ActionTone.negative),
-    ActionDef(label: 'Srv In', category: 'serve', type: 'serve', result: 'in_play', icon: Icons.check, tone: ActionTone.neutral),
-    ActionDef(label: 'Set Err', category: 'setting', type: 'set', result: 'error', icon: Icons.cancel, tone: ActionTone.negative),
-    ActionDef(label: 'Rec Err', category: 'reception', type: 'reception', result: 'error', icon: Icons.error, tone: ActionTone.negative, scoreChange: -1),
+    ActionDef(label: 'Atk Blk', category: 'attack', type: 'blocked', result: 'blocked', icon: Icons.block, tone: ActionTone.negative, scoreChange: -1),
+    ActionDef(label: '0 Atk', category: 'attack', type: 'zero_attack', result: 'zero', icon: Icons.exposure_zero, tone: ActionTone.neutral),
+    ActionDef(label: 'Blk Ast', category: 'block', type: 'block_assist', result: 'assist', icon: Icons.people, tone: ActionTone.positive, scoreChange: 1),
+    ActionDef(label: 'Blk Err', category: 'block', type: 'block_error', result: 'error', icon: Icons.warning, tone: ActionTone.negative, scoreChange: -1),
+    ActionDef(label: 'Pass 3', category: 'reception', type: 'pass_3', result: '3', icon: Icons.looks_3, tone: ActionTone.positive),
+    ActionDef(label: 'Pass 2', category: 'reception', type: 'pass_2', result: '2', icon: Icons.looks_two, tone: ActionTone.neutral),
+    ActionDef(label: 'Pass 1', category: 'reception', type: 'pass_1', result: '1', icon: Icons.looks_one, tone: ActionTone.neutral),
+    ActionDef(label: 'Pass 0', category: 'reception', type: 'pass_0', result: '0', icon: Icons.exposure_zero, tone: ActionTone.negative),
+    ActionDef(label: 'Dig Err', category: 'defense', type: 'dig_error', result: 'error', icon: Icons.do_not_disturb, tone: ActionTone.negative),
+    ActionDef(label: 'Srv In', category: 'serve', type: 'serve_in_play', result: 'in_play', icon: Icons.check, tone: ActionTone.neutral),
+    ActionDef(label: 'Set Err', category: 'setting', type: 'set_error', result: 'error', icon: Icons.cancel, tone: ActionTone.negative),
+    ActionDef(label: 'Rec Err', category: 'reception', type: 'pass_error', result: 'error', icon: Icons.error, tone: ActionTone.negative, scoreChange: -1),
   ];
 
   // Category grouping for detailed mode, keyed by display label.

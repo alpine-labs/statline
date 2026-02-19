@@ -80,12 +80,12 @@ class StatCalculator {
     final computedMetrics =
         plugin.computeSeasonMetrics(totals, gamesPlayed, totalSets);
 
-    // Recalculate hitting_pct from season totals
+    // Recalculate hittingPercentage from season totals
     if (sport == 'volleyball') {
-      totals['hitting_pct'] = VolleyballStats.computeHittingPercentage(
+      totals['hittingPercentage'] = VolleyballStats.computeHittingPercentage(
         (totals['kills'] as num?)?.toInt() ?? 0,
-        (totals['attack_errors'] as num?)?.toInt() ?? 0,
-        (totals['attack_attempts'] as num?)?.toInt() ?? 0,
+        (totals['errors'] as num?)?.toInt() ?? 0,
+        (totals['totalAttempts'] as num?)?.toInt() ?? 0,
       );
     }
 

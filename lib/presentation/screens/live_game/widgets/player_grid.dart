@@ -295,13 +295,13 @@ class _PlayerButton extends StatelessWidget {
   void _showStatsPeek(BuildContext context) {
     final stats = playerStats!;
     final kills = stats['kills'] ?? 0;
-    final errors = stats['attack_errors'] ?? 0;
-    final attempts = stats['attack_attempts'] ?? 0;
-    final hitPct = stats['hitting_pct'] ?? 0.0;
+    final errors = stats['errors'] ?? 0;
+    final attempts = stats['totalAttempts'] ?? 0;
+    final hitPct = stats['hittingPercentage'] ?? 0.0;
     final assists = stats['assists'] ?? 0;
-    final aces = stats['aces'] ?? 0;
+    final aces = stats['serviceAces'] ?? 0;
     final digs = stats['digs'] ?? 0;
-    final blocks = stats['total_blocks'] ?? 0;
+    final blocks = stats['totalBlocks'] ?? 0;
 
     showDialog(
       context: context,

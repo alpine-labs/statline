@@ -427,15 +427,15 @@ class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
 
   static String _actionAbbreviation(String type, String result) {
     const map = {
-      'attack_kill': 'K', 'attack_error': 'E', 'attack_blocked': 'AB',
-      'attack_zero': '0A', 'serve_ace': 'A', 'serve_error': 'SE',
+      'kill': 'K', 'attack_error': 'E', 'blocked': 'AB',
+      'zero_attack': '0A', 'ace': 'A', 'serve_error': 'SE',
       'serve_in_play': 'SI', 'block_solo': 'B', 'block_assist': 'BA',
-      'block_error': 'BE', 'dig_success': 'D', 'dig_error': 'DE',
+      'block_error': 'BE', 'dig': 'D', 'dig_error': 'DE',
       'pass_3': 'P3', 'pass_2': 'P2', 'pass_1': 'P1', 'pass_0': 'P0',
-      'reception_error': 'RE', 'assist_success': 'AS', 'set_error': 'STE',
-      'error_error': 'OE',
+      'pass_error': 'RE', 'set_assist': 'AS', 'set_error': 'STE',
+      'opp_error': 'OE',
     };
-    return map['${type}_$result'] ?? result.substring(0, 1).toUpperCase();
+    return map[type] ?? result.substring(0, 1).toUpperCase();
   }
 
   Map<String, Map<String, dynamic>> _computeAllPlayerStats(LiveGameState liveState) {
