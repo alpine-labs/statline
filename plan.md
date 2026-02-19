@@ -1,5 +1,18 @@
 # StatLine — Multi-Sport Stats Tracker — Design Plan
 
+## Execution Plan
+
+See [EXECUTION_PLAN.md](./EXECUTION_PLAN.md) for the expert-informed sprint plan with prioritized tasks.
+
+### Key Decisions
+- **Dashboard**: Minimal Coach's Command Center — Start Game hero, last game card, season record w/ streaks, team leaders. Trends card added later.
+- **Entry Modes**: Quick (8 buttons) and Detailed (20 buttons) only. No middle ground.
+- **Pass rating**: 0-3 scale only.
+- **Sub limits**: Configurable per team (NCAA 15 / NFHS 12 / custom).
+- **Target audience**: Youth, high school, & rec. Keep UX fast and approachable — avoid over-complicating.
+
+---
+
 ## Overview
 
 **StatLine** is a cross-platform (iOS, Android, Web) sports stat-tracking app that lets coaches, stat keepers, and players record play-by-play stats during live games and track ongoing metrics across games and seasons with tables and charts.
