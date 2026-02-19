@@ -412,6 +412,7 @@ class DashboardScreen extends ConsumerWidget {
                           Theme.of(context).textTheme.headlineSmall?.copyWith(
                                 fontWeight: FontWeight.bold,
                               ),
+                      softWrap: false,
                     ),
                   ],
                 ),
@@ -637,7 +638,12 @@ class DashboardScreen extends ConsumerWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(getPlayerName(s.playerId)),
+                    Flexible(
+                      child: Text(
+                        getPlayerName(s.playerId),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -665,7 +671,12 @@ class DashboardScreen extends ConsumerWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(getPlayerName(s.playerId)),
+                    Flexible(
+                      child: Text(
+                        getPlayerName(s.playerId),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [

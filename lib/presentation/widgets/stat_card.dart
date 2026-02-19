@@ -26,8 +26,12 @@ class StatCard extends StatelessWidget {
     return SizedBox(
       width: width,
       child: Card(
+        margin: EdgeInsets.zero,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: EdgeInsets.symmetric(
+            horizontal: width != null ? 8 : 16,
+            vertical: 12,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -65,6 +69,8 @@ class StatCard extends StatelessWidget {
                   color: colorScheme.onSurface.withAlpha(153),
                 ),
                 textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
