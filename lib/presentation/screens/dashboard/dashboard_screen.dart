@@ -54,30 +54,34 @@ class DashboardScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Team name
-          Text(
-            selectedTeam.name,
-            style: Theme.of(context).textTheme.headlineMedium,
+          // 1. Start Game hero card
+          _buildStartGameCard(context, selectedTeam.name),
+          const SizedBox(height: 16),
+
+          // 2. Season record + streak
+          gamesAsync.when(
+            data: (games) => _buildRecordCard(context, record, games),
+            loading: () => _buildRecordCard(context, record, []),
+            error: (_, __) => _buildRecordCard(context, record, []),
           ),
           const SizedBox(height: 16),
 
-          // Season record
-          _buildRecordCard(context, record),
-          const SizedBox(height: 16),
-
-          // New Game button
-          SizedBox(
-            width: double.infinity,
-            height: 64,
-            child: ElevatedButton.icon(
-              onPressed: () => context.go('/live-game'),
-              icon: const Icon(Icons.play_arrow, size: 28),
-              label: const Text('New Game', style: TextStyle(fontSize: 18)),
-            ),
+          // 3. Last Game box score
+          gamesAsync.when(
+            data: (games) {
+              final completed = games
+                  .where((g) => g.status == GameStatus.completed)
+                  .toList()
+                ..sort((a, b) => b.gameDate.compareTo(a.gameDate));
+              if (completed.isEmpty) return const SizedBox.shrink();
+              return _buildLastGameCard(context, completed.first);
+            },
+            loading: () => const SizedBox.shrink(),
+            error: (_, __) => const SizedBox.shrink(),
           ),
           const SizedBox(height: 24),
 
-          // Recent games
+          // 4. Recent Games
           Text(
             'Recent Games',
             style: Theme.of(context).textTheme.titleLarge,
@@ -104,7 +108,7 @@ class DashboardScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 24),
 
-          // Leaderboard snapshot
+          // 5. Team Leaders
           Text(
             'Team Leaders',
             style: Theme.of(context).textTheme.titleLarge,
@@ -161,7 +165,7 @@ class DashboardScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'Create a team to get started tracking your stats.',
+                'Select a team to get started',
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       color: Theme.of(context)
                           .colorScheme
@@ -173,8 +177,8 @@ class DashboardScreen extends ConsumerWidget {
               const SizedBox(height: 32),
               FilledButton.icon(
                 onPressed: () => context.go('/teams'),
-                icon: const Icon(Icons.add),
-                label: const Text('Create Team'),
+                icon: const Icon(Icons.groups),
+                label: const Text('Go to Teams'),
               ),
             ],
           ),
@@ -183,55 +187,235 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildRecordCard(BuildContext context, Map<String, int> record) {
+  Widget _buildStartGameCard(BuildContext context, String teamName) {
+    return Card(
+      color: StatLineColors.primaryAccent,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => context.go('/live-game'),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+          child: Row(
+            children: [
+              const Icon(Icons.play_circle_filled,
+                  size: 48, color: StatLineColors.onPrimary),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      teamName,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: StatLineColors.onPrimary.withAlpha(204),
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Start a new game',
+                      style:
+                          Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                color: StatLineColors.onPrimary,
+                                fontWeight: FontWeight.bold,
+                              ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.arrow_forward_ios,
+                  color: StatLineColors.onPrimary, size: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Compute current streak from completed games sorted newest-first.
+  String _computeStreak(List<Game> games) {
+    final completed = games
+        .where((g) => g.status == GameStatus.completed && g.result != null)
+        .toList()
+      ..sort((a, b) => b.gameDate.compareTo(a.gameDate));
+    if (completed.isEmpty) return '';
+
+    final firstResult = completed.first.result!;
+    int count = 0;
+    for (final game in completed) {
+      if (game.result == firstResult) {
+        count++;
+      } else {
+        break;
+      }
+    }
+    if (count < 2) return '';
+
+    switch (firstResult) {
+      case GameResult.win:
+        return '🔥 W$count';
+      case GameResult.loss:
+        return 'L$count';
+      case GameResult.tie:
+        return 'T$count';
+    }
+  }
+
+  Widget _buildRecordCard(
+      BuildContext context, Map<String, int> record, List<Game> games) {
     final wins = record['wins'] ?? 0;
     final losses = record['losses'] ?? 0;
     final ties = record['ties'] ?? 0;
+    final streak = _computeStreak(games);
 
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        child: Column(
           children: [
-            StatCard(
-              label: 'Wins',
-              value: '$wins',
-              valueColor: StatLineColors.pointScored,
-              width: 80,
-            ),
-            Text(
-              '-',
-              style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                    color:
-                        Theme.of(context).colorScheme.onSurface.withAlpha(102),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                StatCard(
+                  label: 'Wins',
+                  value: '$wins',
+                  valueColor: StatLineColors.pointScored,
+                  width: 80,
+                ),
+                Text(
+                  '-',
+                  style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .onSurface
+                            .withAlpha(102),
+                      ),
+                ),
+                StatCard(
+                  label: 'Losses',
+                  value: '$losses',
+                  valueColor: StatLineColors.pointLost,
+                  width: 80,
+                ),
+                if (ties > 0) ...[
+                  Text(
+                    '-',
+                    style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurface
+                              .withAlpha(102),
+                        ),
                   ),
+                  StatCard(
+                    label: 'Ties',
+                    value: '$ties',
+                    width: 80,
+                  ),
+                ],
+              ],
             ),
-            StatCard(
-              label: 'Losses',
-              value: '$losses',
-              valueColor: StatLineColors.pointLost,
-              width: 80,
-            ),
-            if (ties > 0) ...[
+            if (streak.isNotEmpty) ...[
+              const SizedBox(height: 8),
               Text(
-                '-',
-                style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withAlpha(102),
+                streak,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
                     ),
-              ),
-              StatCard(
-                label: 'Ties',
-                value: '$ties',
-                width: 80,
               ),
             ],
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildLastGameCard(BuildContext context, Game game) {
+    final isWin = game.result == GameResult.win;
+    final isLoss = game.result == GameResult.loss;
+    final resultLabel = isWin
+        ? 'W'
+        : isLoss
+            ? 'L'
+            : 'T';
+    final resultColor = isWin
+        ? StatLineColors.pointScored
+        : isLoss
+            ? StatLineColors.pointLost
+            : Theme.of(context).colorScheme.onSurface;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Last Game', style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: 8),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: resultColor.withAlpha(51),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        resultLabel,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                          color: resultColor,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${game.isHome ? "vs" : "@"} ${game.opponentName}',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _formatDate(game.gameDate),
+                            style:
+                                Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurface
+                                          .withAlpha(153),
+                                    ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Text(
+                      '${game.finalScoreUs ?? 0} - ${game.finalScoreThem ?? 0}',
+                      style:
+                          Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () => context.go('/stats'),
+                    child: const Text('View Stats →'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
