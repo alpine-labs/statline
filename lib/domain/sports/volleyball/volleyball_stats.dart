@@ -64,6 +64,9 @@ class VolleyballStats {
     int kills = 0;
     int attackErrors = 0;
     int attackAttempts = 0;
+    int oppKills = 0;
+    int oppErrors = 0;
+    int oppAttempts = 0;
     int aces = 0;
     int serveErrors = 0;
     int servesInPlay = 0;
@@ -154,13 +157,22 @@ class VolleyballStats {
           break;
         // Opponent events
         case 'opp_kill':
+          oppKills++;
+          oppAttempts++;
+          break;
         case 'opp_error':
+          oppErrors++;
+          oppAttempts++;
+          break;
         case 'opp_attempt':
+          oppAttempts++;
           break;
       }
     }
 
     final totalBlocks = blockSolos + blockAssists;
+    final oppHittingPct =
+        computeHittingPercentage(oppKills, oppErrors, oppAttempts);
     final serveAttempts = aces + serveErrors + servesInPlay;
     final hittingPct =
         computeHittingPercentage(kills, attackErrors, attackAttempts);
@@ -192,6 +204,10 @@ class VolleyballStats {
       'serve_attempts': serveAttempts,
       'serve_efficiency': serveEfficiency,
       'points': points,
+      'opp_kills': oppKills,
+      'opp_errors': oppErrors,
+      'opp_attempts': oppAttempts,
+      'opp_hitting_pct': oppHittingPct,
     };
   }
 }
