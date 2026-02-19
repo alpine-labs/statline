@@ -62,8 +62,29 @@ final gamesProvider =
 
 final selectedGameProvider = StateProvider<Game?>((ref) => null);
 
-final seasonRecordProvider = StateProvider<Map<String, int>>((ref) {
-  return {'wins': 3, 'losses': 2, 'ties': 0};
+final seasonRecordProvider = Provider<Map<String, int>>((ref) {
+  final gamesAsync = ref.watch(gamesProvider);
+  return gamesAsync.when(
+    data: (games) {
+      int wins = 0, losses = 0, ties = 0;
+      for (final game in games) {
+        if (game.status != GameStatus.completed) continue;
+        switch (game.result) {
+          case GameResult.win:
+            wins++;
+          case GameResult.loss:
+            losses++;
+          case GameResult.tie:
+            ties++;
+          case null:
+            break;
+        }
+      }
+      return {'wins': wins, 'losses': losses, 'ties': ties};
+    },
+    loading: () => {'wins': 0, 'losses': 0, 'ties': 0},
+    error: (_, __) => {'wins': 0, 'losses': 0, 'ties': 0},
+  );
 });
 
 // ── Notifiers ────────────────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import '../../domain/models/play_event.dart';
-import '../../domain/models/stats.dart';
+import '../../domain/models/player_stats.dart';
 import '../database/app_database.dart';
 
 class StatsRepository {

@@ -4,6 +4,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import '../../providers/live_game_providers.dart';
 import '../../providers/team_providers.dart';
 import '../../providers/game_providers.dart';
+import '../../providers/stats_providers.dart';
 import '../../../domain/models/game.dart';
 import '../../../domain/models/player.dart';
 import '../../../domain/models/play_event.dart';
@@ -355,12 +356,33 @@ class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
+              final liveState = ref.read(liveGameStateProvider);
+              final events = List<PlayEvent>.from(liveState.playEvents);
+              final periods = List.of(liveState.periods);
+              final playerIds =
+                  liveState.roster.map((p) => p.id).toList();
+
               ref.read(liveGameStateProvider.notifier).endGame();
               final endedGame = ref.read(liveGameStateProvider).game;
               if (endedGame != null) {
                 ref.read(gamesProvider.notifier).addGame(endedGame);
+
+                // Aggregate stats
+                final service =
+                    ref.read(statsAggregationServiceProvider);
+                await service.aggregateGameStats(
+                  game: endedGame,
+                  events: events,
+                  playerIds: playerIds,
+                  periods: periods,
+                );
+
+                // Refresh season stats from DB
+                await ref
+                    .read(seasonStatsProvider.notifier)
+                    .loadFromDb(endedGame.seasonId);
               }
               ref.read(liveGameStateProvider.notifier).reset();
             },

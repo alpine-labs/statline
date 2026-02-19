@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/stats_providers.dart';
 import '../../providers/team_providers.dart';
 import '../../widgets/export_button.dart';
-import '../../../domain/models/stats.dart';
+import '../../../domain/models/player_stats.dart';
 import 'widgets/stats_table.dart';
 import 'player_detail_screen.dart';
 

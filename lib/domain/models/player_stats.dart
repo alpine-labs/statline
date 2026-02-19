@@ -24,7 +24,7 @@ class PlayerGameStatsModel {
       'player_id': playerId,
       'sport': sport,
       'stats': jsonEncode(stats),
-      'computed_at': computedAt.toIso8601String(),
+      'computed_at': computedAt.millisecondsSinceEpoch,
     };
   }
 
@@ -45,7 +45,7 @@ class PlayerGameStatsModel {
       playerId: map['player_id'] as String,
       sport: map['sport'] as String,
       stats: stats,
-      computedAt: DateTime.parse(map['computed_at'] as String),
+      computedAt: DateTime.fromMillisecondsSinceEpoch(map['computed_at'] as int),
     );
   }
 
@@ -104,7 +104,7 @@ class PlayerSeasonStatsModel {
       'stats_totals': jsonEncode(statsTotals),
       'stats_averages': jsonEncode(statsAverages),
       'computed_metrics': jsonEncode(computedMetrics),
-      'computed_at': computedAt.toIso8601String(),
+      'computed_at': computedAt.millisecondsSinceEpoch,
     };
   }
 
@@ -127,7 +127,7 @@ class PlayerSeasonStatsModel {
       statsTotals: parseJsonField(map['stats_totals']),
       statsAverages: parseJsonField(map['stats_averages']),
       computedMetrics: parseJsonField(map['computed_metrics']),
-      computedAt: DateTime.parse(map['computed_at'] as String),
+      computedAt: DateTime.fromMillisecondsSinceEpoch(map['computed_at'] as int),
     );
   }
 

@@ -5,7 +5,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../domain/models/play_event.dart';
-import '../domain/models/stats.dart';
+import '../domain/models/player_stats.dart';
 
 /// Utility for exporting stat data to CSV format.
 class CsvExporter {

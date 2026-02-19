@@ -10,7 +10,7 @@ import 'package:share_plus/share_plus.dart';
 import '../domain/models/game.dart';
 import '../domain/models/game_period.dart';
 import '../domain/models/season.dart';
-import '../domain/models/stats.dart';
+import '../domain/models/player_stats.dart';
 
 /// Generates professional PDF reports for games and seasons.
 class PdfExporter {

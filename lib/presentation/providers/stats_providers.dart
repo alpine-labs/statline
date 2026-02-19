@@ -1,9 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../domain/models/stats.dart';
+import '../../domain/models/player_stats.dart';
+import '../../data/repositories/stats_repository.dart';
+import '../../data/database/app_database.dart';
+import '../../domain/stats/stats_aggregation_service.dart';
 
 // ── Mock data ────────────────────────────────────────────────────────────────
 
-final _now = DateTime.now().millisecondsSinceEpoch;
+final _now = DateTime.now();
 
 final _mockSeasonStats = [
   PlayerSeasonStatsModel(
@@ -56,11 +59,21 @@ final _mockSeasonStats = [
   ),
 ];
 
+// ── Repository & Service Providers ───────────────────────────────────────────
+
+final statsRepositoryProvider = Provider<StatsRepository>((ref) {
+  return StatsRepository(AppDatabase.getInstance());
+});
+
+final statsAggregationServiceProvider = Provider<StatsAggregationService>((ref) {
+  return StatsAggregationService(ref.read(statsRepositoryProvider));
+});
+
 // ── Providers ────────────────────────────────────────────────────────────────
 
 final seasonStatsProvider = StateNotifierProvider<SeasonStatsNotifier,
     AsyncValue<List<PlayerSeasonStatsModel>>>((ref) {
-  return SeasonStatsNotifier();
+  return SeasonStatsNotifier(ref.read(statsRepositoryProvider));
 });
 
 final playerDetailProvider =
@@ -82,7 +95,9 @@ final playerDetailProvider =
 
 class SeasonStatsNotifier
     extends StateNotifier<AsyncValue<List<PlayerSeasonStatsModel>>> {
-  SeasonStatsNotifier() : super(const AsyncValue.loading()) {
+  final StatsRepository _repository;
+
+  SeasonStatsNotifier(this._repository) : super(const AsyncValue.loading()) {
     loadStats();
   }
 
@@ -90,11 +105,31 @@ class SeasonStatsNotifier
     state = AsyncValue.data(List.from(_mockSeasonStats));
   }
 
+  /// Loads season stats from the database, falling back to mock data if empty.
+  Future<void> loadFromDb(String seasonId) async {
+    state = const AsyncValue.loading();
+    try {
+      final dbStats = await _repository.getTeamSeasonStats(seasonId);
+      if (dbStats.isNotEmpty) {
+        state = AsyncValue.data(dbStats);
+      } else {
+        state = AsyncValue.data(List.from(_mockSeasonStats));
+      }
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+    }
+  }
+
   void updateStats(PlayerSeasonStatsModel stats) {
     state.whenData((list) {
-      state = AsyncValue.data(
-        list.map((s) => s.id == stats.id ? stats : s).toList(),
-      );
+      final exists = list.any((s) => s.playerId == stats.playerId);
+      if (exists) {
+        state = AsyncValue.data(
+          list.map((s) => s.playerId == stats.playerId ? stats : s).toList(),
+        );
+      } else {
+        state = AsyncValue.data([...list, stats]);
+      }
     });
   }
 
