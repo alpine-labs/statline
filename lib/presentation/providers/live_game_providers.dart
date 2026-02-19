@@ -23,6 +23,9 @@ class LiveGameState {
   final int maxTimeoutsPerSet;
   final int subsThisSet;
   final int maxSubsPerSet;
+  final String? liberoPlayerId;
+  final bool liberoIsIn;
+  final String? liberoReplacedPlayerId;
 
   const LiveGameState({
     this.game,
@@ -41,6 +44,9 @@ class LiveGameState {
     this.maxTimeoutsPerSet = 2,
     this.subsThisSet = 0,
     this.maxSubsPerSet = 15,
+    this.liberoPlayerId,
+    this.liberoIsIn = false,
+    this.liberoReplacedPlayerId,
   });
 
   factory LiveGameState.initial() => const LiveGameState();
@@ -64,6 +70,9 @@ class LiveGameState {
     int? maxTimeoutsPerSet,
     int? subsThisSet,
     int? maxSubsPerSet,
+    String? Function()? liberoPlayerId,
+    bool? liberoIsIn,
+    String? Function()? liberoReplacedPlayerId,
   }) {
     return LiveGameState(
       game: game != null ? game() : this.game,
@@ -85,6 +94,12 @@ class LiveGameState {
       maxTimeoutsPerSet: maxTimeoutsPerSet ?? this.maxTimeoutsPerSet,
       subsThisSet: subsThisSet ?? this.subsThisSet,
       maxSubsPerSet: maxSubsPerSet ?? this.maxSubsPerSet,
+      liberoPlayerId:
+          liberoPlayerId != null ? liberoPlayerId() : this.liberoPlayerId,
+      liberoIsIn: liberoIsIn ?? this.liberoIsIn,
+      liberoReplacedPlayerId: liberoReplacedPlayerId != null
+          ? liberoReplacedPlayerId()
+          : this.liberoReplacedPlayerId,
     );
   }
 }
@@ -225,6 +240,29 @@ class LiveGameNotifier extends StateNotifier<LiveGameState> {
     final current = state.currentRotation ?? 1;
     final prev = current <= 1 ? 6 : current - 1;
     state = state.copyWith(currentRotation: () => prev);
+  }
+
+  void setLibero(String playerId) {
+    state = state.copyWith(
+      liberoPlayerId: () => playerId,
+      liberoIsIn: false,
+      liberoReplacedPlayerId: () => null,
+    );
+  }
+
+  void liberoIn(String replacedPlayerId) {
+    if (state.liberoPlayerId == null) return;
+    state = state.copyWith(
+      liberoIsIn: true,
+      liberoReplacedPlayerId: () => replacedPlayerId,
+    );
+  }
+
+  void liberoOut() {
+    state = state.copyWith(
+      liberoIsIn: false,
+      liberoReplacedPlayerId: () => null,
+    );
   }
 
   void updateScore(int us, int them) {

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -8,6 +9,7 @@ import '../../providers/stats_providers.dart';
 import '../../../domain/models/game.dart';
 import '../../../domain/models/player.dart';
 import '../../../domain/models/play_event.dart';
+import '../../../domain/sports/volleyball/volleyball_stats.dart';
 import '../../../core/theme/app_theme.dart';
 import 'widgets/scoreboard_widget.dart';
 import 'widgets/player_grid.dart';
@@ -23,6 +25,9 @@ class LiveGameScreen extends ConsumerStatefulWidget {
 }
 
 class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
+  Map<String, String> _lastActionBadges = {};
+  final Map<String, Timer> _badgeTimers = {};
+
   @override
   void initState() {
     super.initState();
@@ -31,6 +36,9 @@ class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
 
   @override
   void dispose() {
+    for (final timer in _badgeTimers.values) {
+      timer.cancel();
+    }
     WakelockPlus.disable();
     super.dispose();
   }
@@ -88,12 +96,23 @@ class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
                       case 'end_game':
                         _showEndGameDialog(context);
                         break;
+                      case 'libero_toggle':
+                        _handleLiberoToggle(context, ref, liveState);
+                        break;
                     }
                   },
                   itemBuilder: (context) => [
                     const PopupMenuItem(
                       value: 'next_set',
                       child: Text('Next Set'),
+                    ),
+                    PopupMenuItem(
+                      value: 'libero_toggle',
+                      child: Text(
+                        liveState.liberoIsIn
+                            ? 'Libero Out'
+                            : 'Libero In',
+                      ),
                     ),
                     const PopupMenuItem(
                       value: 'end_game',
@@ -149,10 +168,32 @@ class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
                       child: PlayerGrid(
                         players: liveState.roster,
                         selectedPlayerId: liveState.selectedPlayerId,
+                        liberoPlayerId: liveState.liberoPlayerId,
+                        liberoIsIn: liveState.liberoIsIn,
+                        liberoReplacedPlayerId:
+                            liveState.liberoReplacedPlayerId,
+                        lastActions: _lastActionBadges,
+                        playerStats: _computeAllPlayerStats(liveState),
                         onPlayerSelected: (playerId) {
                           ref
                               .read(liveGameStateProvider.notifier)
                               .selectPlayer(playerId);
+                        },
+                        onPlayerLongPress: (playerId) {},
+                        onSetLibero: (playerId) {
+                          ref
+                              .read(liveGameStateProvider.notifier)
+                              .setLibero(playerId);
+                        },
+                        onLiberoIn: (replacedPlayerId) {
+                          ref
+                              .read(liveGameStateProvider.notifier)
+                              .liberoIn(replacedPlayerId);
+                        },
+                        onLiberoOut: () {
+                          ref
+                              .read(liveGameStateProvider.notifier)
+                              .liberoOut();
                         },
                       ),
                     ),
@@ -368,6 +409,115 @@ class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
     );
 
     ref.read(liveGameStateProvider.notifier).recordEvent(event);
+
+    // Show action badge on the player button
+    final abbr = _actionAbbreviation(type, result);
+    _badgeTimers[playerId]?.cancel();
+    setState(() {
+      _lastActionBadges = {..._lastActionBadges, playerId: abbr};
+    });
+    _badgeTimers[playerId] = Timer(const Duration(seconds: 3), () {
+      if (mounted) {
+        setState(() {
+          _lastActionBadges = Map.from(_lastActionBadges)..remove(playerId);
+        });
+      }
+    });
+  }
+
+  static String _actionAbbreviation(String type, String result) {
+    const map = {
+      'attack_kill': 'K', 'attack_error': 'E', 'attack_blocked': 'AB',
+      'attack_zero': '0A', 'serve_ace': 'A', 'serve_error': 'SE',
+      'serve_in_play': 'SI', 'block_solo': 'B', 'block_assist': 'BA',
+      'block_error': 'BE', 'dig_success': 'D', 'dig_error': 'DE',
+      'pass_3': 'P3', 'pass_2': 'P2', 'pass_1': 'P1', 'pass_0': 'P0',
+      'reception_error': 'RE', 'assist_success': 'AS', 'set_error': 'STE',
+      'error_error': 'OE',
+    };
+    return map['${type}_$result'] ?? result.substring(0, 1).toUpperCase();
+  }
+
+  Map<String, Map<String, dynamic>> _computeAllPlayerStats(LiveGameState liveState) {
+    final result = <String, Map<String, dynamic>>{};
+    for (final player in liveState.roster) {
+      result[player.id] = VolleyballStats.aggregateFromEvents(
+        liveState.playEvents,
+        playerId: player.id,
+      );
+    }
+    return result;
+  }
+
+  void _handleLiberoToggle(
+    BuildContext context,
+    WidgetRef ref,
+    LiveGameState liveState,
+  ) {
+    final notifier = ref.read(liveGameStateProvider.notifier);
+
+    if (liveState.liberoIsIn) {
+      notifier.liberoOut();
+      return;
+    }
+
+    if (liveState.liberoPlayerId == null) {
+      // No libero designated — prompt user
+      final liberoPlayers = liveState.roster
+          .where((p) => p.positions.contains('L'))
+          .toList();
+      if (liberoPlayers.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('No player with L position on roster')),
+        );
+        return;
+      }
+      if (liberoPlayers.length == 1) {
+        notifier.setLibero(liberoPlayers.first.id);
+      } else {
+        showDialog(
+          context: context,
+          builder: (ctx) => SimpleDialog(
+            title: const Text('Select Libero'),
+            children: liberoPlayers
+                .map((p) => SimpleDialogOption(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        notifier.setLibero(p.id);
+                      },
+                      child: Text('#${p.jerseyNumber} ${p.lastName}'),
+                    ))
+                .toList(),
+          ),
+        );
+        return;
+      }
+    }
+
+    // Libero is designated but out — pick a player to replace
+    final nonLiberoPlayers = liveState.roster
+        .where((p) => p.id != liveState.liberoPlayerId)
+        .where((p) => !p.positions.contains('L'))
+        .toList();
+
+    if (nonLiberoPlayers.isEmpty) return;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Replace which player?'),
+        children: nonLiberoPlayers
+            .map((p) => SimpleDialogOption(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    notifier.liberoIn(p.id);
+                  },
+                  child: Text('#${p.jerseyNumber} ${p.lastName}'),
+                ))
+            .toList(),
+      ),
+    );
   }
 
   void _showEndGameDialog(BuildContext context) {
