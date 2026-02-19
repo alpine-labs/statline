@@ -67,14 +67,14 @@ class VolleyballPlugin extends SportPlugin {
       'aces_per_set': aces / totalSets,
       'digs_per_set': digs / totalSets,
       'blocks_per_set': totalBlocks / totalSets,
-      'hitting_pct': VolleyballStats.computeHittingPercentage(
+      'hittingPercentage': VolleyballStats.computeHittingPercentage(
           kills, attackErrors, attackAttempts),
       'pass_rating_avg':
           gamesPlayed > 0 ? passRatingTotal / gamesPlayed : 0.0,
       'serve_error_pct': servesTotal > 0 ? serveErrors / servesTotal : 0.0,
-      'perfect_pass_pct': VolleyballStats.computePerfectPassPercentage(
+      'perfectPassPct': VolleyballStats.computePerfectPassPercentage(
           pass3Count, passAttempts),
-      'serve_efficiency': VolleyballStats.computeServeEfficiency(
+      'serveEfficiency': VolleyballStats.computeServeEfficiency(
           aces, serveErrors, servesTotal),
       'points_per_set': points / totalSets,
     };
@@ -161,12 +161,12 @@ class VolleyballPlugin extends SportPlugin {
             shortLabel: 'SE%',
             format: 'percentage'),
         const StatColumn(
-            key: 'perfect_pass_pct',
+            key: 'perfectPassPct',
             label: 'Perfect Pass %',
             shortLabel: 'PP%',
             format: 'decimal3'),
         const StatColumn(
-            key: 'serve_efficiency',
+            key: 'serveEfficiency',
             label: 'Serve Efficiency',
             shortLabel: 'SrEff',
             format: 'decimal3'),
