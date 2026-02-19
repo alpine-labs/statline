@@ -13,6 +13,7 @@ import 'widgets/scoreboard_widget.dart';
 import 'widgets/player_grid.dart';
 import 'widgets/action_palette.dart';
 import 'widgets/undo_bar.dart';
+import 'widgets/rotation_indicator.dart';
 
 class LiveGameScreen extends ConsumerStatefulWidget {
   const LiveGameScreen({super.key});
@@ -114,6 +115,32 @@ class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
                       scoreUs: liveState.scoreUs,
                       scoreThem: liveState.scoreThem,
                       periods: liveState.periods,
+                      timeoutsUs: liveState.timeoutsUs,
+                      timeoutsThem: liveState.timeoutsThem,
+                      maxTimeouts: liveState.maxTimeoutsPerSet,
+                      onTimeoutUs: () => ref
+                          .read(liveGameStateProvider.notifier)
+                          .callTimeout(true),
+                      onTimeoutThem: () => ref
+                          .read(liveGameStateProvider.notifier)
+                          .callTimeout(false),
+                      subsThisSet: liveState.subsThisSet,
+                      maxSubsPerSet: liveState.maxSubsPerSet,
+                      onRecordSub: () => ref
+                          .read(liveGameStateProvider.notifier)
+                          .recordSubstitution(),
+                    ),
+                    const Divider(height: 1, color: Color(0xFF333333)),
+
+                    // Rotation indicator
+                    RotationIndicator(
+                      currentRotation: liveState.currentRotation ?? 1,
+                      onRotateForward: () => ref
+                          .read(liveGameStateProvider.notifier)
+                          .rotateForward(),
+                      onRotateBackward: () => ref
+                          .read(liveGameStateProvider.notifier)
+                          .rotateBackward(),
                     ),
                     const Divider(height: 1, color: Color(0xFF333333)),
 

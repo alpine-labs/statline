@@ -18,6 +18,11 @@ class LiveGameState {
   final List<PlayEvent> undoStack;
   final List<Player> roster;
   final String? selectedPlayerId;
+  final int timeoutsUs;
+  final int timeoutsThem;
+  final int maxTimeoutsPerSet;
+  final int subsThisSet;
+  final int maxSubsPerSet;
 
   const LiveGameState({
     this.game,
@@ -31,6 +36,11 @@ class LiveGameState {
     this.undoStack = const [],
     this.roster = const [],
     this.selectedPlayerId,
+    this.timeoutsUs = 0,
+    this.timeoutsThem = 0,
+    this.maxTimeoutsPerSet = 2,
+    this.subsThisSet = 0,
+    this.maxSubsPerSet = 15,
   });
 
   factory LiveGameState.initial() => const LiveGameState();
@@ -49,6 +59,11 @@ class LiveGameState {
     List<PlayEvent>? undoStack,
     List<Player>? roster,
     String? Function()? selectedPlayerId,
+    int? timeoutsUs,
+    int? timeoutsThem,
+    int? maxTimeoutsPerSet,
+    int? subsThisSet,
+    int? maxSubsPerSet,
   }) {
     return LiveGameState(
       game: game != null ? game() : this.game,
@@ -65,6 +80,11 @@ class LiveGameState {
       roster: roster ?? this.roster,
       selectedPlayerId:
           selectedPlayerId != null ? selectedPlayerId() : this.selectedPlayerId,
+      timeoutsUs: timeoutsUs ?? this.timeoutsUs,
+      timeoutsThem: timeoutsThem ?? this.timeoutsThem,
+      maxTimeoutsPerSet: maxTimeoutsPerSet ?? this.maxTimeoutsPerSet,
+      subsThisSet: subsThisSet ?? this.subsThisSet,
+      maxSubsPerSet: maxSubsPerSet ?? this.maxSubsPerSet,
     );
   }
 }
@@ -93,6 +113,9 @@ class LiveGameNotifier extends StateNotifier<LiveGameState> {
       undoStack: [],
       currentRotation: () => 1,
       selectedPlayerId: () => null,
+      timeoutsUs: 0,
+      timeoutsThem: 0,
+      subsThisSet: 0,
     );
   }
 
@@ -171,7 +194,37 @@ class LiveGameNotifier extends StateNotifier<LiveGameState> {
       currentPeriod: () => newPeriod,
       scoreUs: 0,
       scoreThem: 0,
+      timeoutsUs: 0,
+      timeoutsThem: 0,
+      subsThisSet: 0,
     );
+  }
+
+  void callTimeout(bool isUs) {
+    if (isUs) {
+      if (state.timeoutsUs >= state.maxTimeoutsPerSet) return;
+      state = state.copyWith(timeoutsUs: state.timeoutsUs + 1);
+    } else {
+      if (state.timeoutsThem >= state.maxTimeoutsPerSet) return;
+      state = state.copyWith(timeoutsThem: state.timeoutsThem + 1);
+    }
+  }
+
+  void recordSubstitution() {
+    if (state.subsThisSet >= state.maxSubsPerSet) return;
+    state = state.copyWith(subsThisSet: state.subsThisSet + 1);
+  }
+
+  void rotateForward() {
+    final current = state.currentRotation ?? 1;
+    final next = current >= 6 ? 1 : current + 1;
+    state = state.copyWith(currentRotation: () => next);
+  }
+
+  void rotateBackward() {
+    final current = state.currentRotation ?? 1;
+    final prev = current <= 1 ? 6 : current - 1;
+    state = state.copyWith(currentRotation: () => prev);
   }
 
   void updateScore(int us, int them) {

@@ -10,6 +10,14 @@ class ScoreboardWidget extends StatelessWidget {
   final int scoreUs;
   final int scoreThem;
   final List<GamePeriod> periods;
+  final int timeoutsUs;
+  final int timeoutsThem;
+  final int maxTimeouts;
+  final VoidCallback? onTimeoutUs;
+  final VoidCallback? onTimeoutThem;
+  final int subsThisSet;
+  final int maxSubsPerSet;
+  final VoidCallback? onRecordSub;
 
   const ScoreboardWidget({
     super.key,
@@ -18,6 +26,14 @@ class ScoreboardWidget extends StatelessWidget {
     required this.scoreUs,
     required this.scoreThem,
     required this.periods,
+    this.timeoutsUs = 0,
+    this.timeoutsThem = 0,
+    this.maxTimeouts = 2,
+    this.onTimeoutUs,
+    this.onTimeoutThem,
+    this.subsThisSet = 0,
+    this.maxSubsPerSet = 15,
+    this.onRecordSub,
   });
 
   @override
@@ -146,8 +162,98 @@ class ScoreboardWidget extends StatelessWidget {
                 ],
               ),
             ),
+          // Timeout indicators
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    onTap: onTimeoutUs,
+                    child: _buildTimeoutIndicator(timeoutsUs, maxTimeouts),
+                  ),
+                ),
+                Text(
+                  'TO',
+                  style: TextStyle(
+                    color: Colors.white.withAlpha(102),
+                    fontSize: 11,
+                  ),
+                ),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: onTimeoutThem,
+                    child: _buildTimeoutIndicator(timeoutsThem, maxTimeouts),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Substitution counter
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: GestureDetector(
+              onTap: onRecordSub,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'Subs: $subsThisSet/$maxSubsPerSet',
+                    style: TextStyle(
+                      color: _subsColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  if (onRecordSub != null && subsThisSet < maxSubsPerSet)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 6),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withAlpha(26),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          '+1',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
+    );
+  }
+
+  Color get _subsColor {
+    if (subsThisSet >= maxSubsPerSet) return Colors.red;
+    if (subsThisSet > maxSubsPerSet * 0.8) return Colors.yellow;
+    return Colors.white70;
+  }
+
+  Widget _buildTimeoutIndicator(int used, int max) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(max, (i) {
+        final isFilled = i < used;
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: Icon(
+            isFilled ? Icons.circle : Icons.circle_outlined,
+            size: 10,
+            color: isFilled ? Colors.amber : Colors.white38,
+          ),
+        );
+      }),
     );
   }
 }
