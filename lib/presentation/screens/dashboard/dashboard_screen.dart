@@ -66,6 +66,18 @@ class DashboardScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
 
+          // 2b. Trends / Insights card
+          gamesAsync.when(
+            data: (games) => statsAsync.when(
+              data: (stats) => _buildTrendsCard(context, games, stats, ref),
+              loading: () => const SizedBox.shrink(),
+              error: (_, __) => const SizedBox.shrink(),
+            ),
+            loading: () => const SizedBox.shrink(),
+            error: (_, __) => const SizedBox.shrink(),
+          ),
+          const SizedBox(height: 16),
+
           // 3. Last Game box score
           gamesAsync.when(
             data: (games) {
@@ -471,6 +483,116 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
+  /// Generate simple insight strings from season stats and game data.
+  List<String> _generateInsights(
+      List<Game> games, List<dynamic> stats, WidgetRef ref) {
+    final insights = <String>[];
+
+    // 1. Win/loss streak check
+    final completed = games
+        .where((g) => g.status == GameStatus.completed && g.result != null)
+        .toList()
+      ..sort((a, b) => b.gameDate.compareTo(a.gameDate));
+    if (completed.length >= 2) {
+      final firstResult = completed.first.result!;
+      int streakCount = 0;
+      for (final g in completed) {
+        if (g.result == firstResult) {
+          streakCount++;
+        } else {
+          break;
+        }
+      }
+      if (streakCount >= 3 && firstResult == GameResult.win) {
+        insights.add('🔥 Team is on a $streakCount-game win streak!');
+      } else if (streakCount >= 3 && firstResult == GameResult.loss) {
+        insights.add('⚠️ Team is on a $streakCount-game losing streak');
+      }
+    }
+
+    // 2. Service errors check — flag if team total is high
+    if (stats.isNotEmpty) {
+      final totalServiceErrors = stats.fold<num>(
+          0, (sum, s) => sum + ((s.statsTotals['serviceErrors'] ?? 0) as num));
+      final totalGames = stats
+          .map((s) => s.gamesPlayed as int)
+          .fold<int>(0, (a, b) => a > b ? a : b);
+      if (totalGames > 0) {
+        final errorsPerGame = totalServiceErrors / totalGames;
+        if (errorsPerGame > 5) {
+          insights.add(
+              '📈 Service errors trending up (${errorsPerGame.toStringAsFixed(1)}/game)');
+        }
+      }
+    }
+
+    // 3. Top hitter hitting % dip check
+    if (stats.isNotEmpty) {
+      final playersAsync = ref.read(playersProvider);
+      final players = playersAsync.valueOrNull ?? [];
+      String getPlayerName(String playerId) {
+        final p = players.where((p) => p.id == playerId);
+        return p.isNotEmpty ? p.first.shortName : 'Player';
+      }
+
+      final sortedByKills = List.from(stats)
+        ..sort((a, b) => ((b.statsTotals['kills'] ?? 0) as num)
+            .compareTo((a.statsTotals['kills'] ?? 0) as num));
+      if (sortedByKills.isNotEmpty) {
+        final topHitter = sortedByKills.first;
+        final hitPct =
+            (topHitter.computedMetrics['hittingPercentage'] ?? 0) as num;
+        if (hitPct < 0.200 && (topHitter.statsTotals['kills'] ?? 0) > 10) {
+          insights.add(
+              "⚠️ ${getPlayerName(topHitter.playerId)}'s hitting % has dipped recently");
+        }
+      }
+    }
+
+    return insights;
+  }
+
+  Widget _buildTrendsCard(BuildContext context, List<Game> games,
+      List<dynamic> stats, WidgetRef ref) {
+    final insights = _generateInsights(games, stats, ref);
+    final displayInsights = insights.isNotEmpty
+        ? insights
+        : ['📊 Stats looking steady — keep it up!'];
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Insights',
+                style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            ...displayInsights.map((insight) => Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(insight,
+                      style: Theme.of(context).textTheme.bodyMedium),
+                )),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Returns a trend arrow widget: ▲ green if above average, ▼ red if below.
+  Widget _buildTrendArrow(num value, num average) {
+    if (average == 0) return const SizedBox.shrink();
+    if (value > average) {
+      return const Text(' ▲',
+          style: TextStyle(color: Color(0xFF4CAF50), fontSize: 12));
+    } else if (value < average) {
+      return const Text(' ▼',
+          style: TextStyle(color: Color(0xFFF44336), fontSize: 12));
+    }
+    return const Text(' —',
+        style: TextStyle(color: Color(0xFF9E9E9E), fontSize: 12));
+  }
+
   Widget _buildLeaderboard(
       BuildContext context, List<dynamic> stats, WidgetRef ref) {
     // Top kills
@@ -503,34 +625,61 @@ class DashboardScreen extends ConsumerWidget {
             Text('Top Kills',
                 style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
-            ...topKillers.map((s) => Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(getPlayerName(s.playerId)),
-                      Text('${s.statsTotals['kills'] ?? 0}',
-                          style: const TextStyle(fontWeight: FontWeight.bold)),
-                    ],
-                  ),
-                )),
+            ...topKillers.map((s) {
+              final kills = (s.statsTotals['kills'] ?? 0) as num;
+              final avgKills = (s.statsAverages['kills'] ?? 0) as num;
+              final gamesPlayed = s.gamesPlayed as int;
+              // Compare per-game rate vs average
+              final lastGameRate =
+                  gamesPlayed > 0 ? kills / gamesPlayed : 0;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(getPlayerName(s.playerId)),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('${s.statsTotals['kills'] ?? 0}',
+                            style:
+                                const TextStyle(fontWeight: FontWeight.bold)),
+                        _buildTrendArrow(lastGameRate, avgKills),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            }),
             const Divider(height: 24),
             Text('Top Hitting %',
                 style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
-            ...topHitters.map((s) => Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(getPlayerName(s.playerId)),
-                      Text(
-                        '.${((s.computedMetrics['hittingPercentage'] ?? 0) * 1000).round().toString().padLeft(3, '0')}',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                )),
+            ...topHitters.map((s) {
+              final hitPct =
+                  (s.computedMetrics['hittingPercentage'] ?? 0) as num;
+              // Compare against league-average baseline of .250
+              const avgBaseline = 0.250;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(getPlayerName(s.playerId)),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '.${(hitPct * 1000).round().toString().padLeft(3, '0')}',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        _buildTrendArrow(hitPct, avgBaseline),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            }),
           ],
         ),
       ),
