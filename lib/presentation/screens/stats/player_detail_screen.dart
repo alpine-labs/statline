@@ -5,6 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/stats_providers.dart';
 import '../../providers/team_providers.dart';
 import '../../widgets/stat_card.dart';
+import '../../../export/csv_exporter.dart';
+import '../../../export/share_service.dart';
+import '../../../domain/models/player_stats.dart';
 import 'widgets/line_chart_widget.dart';
 import 'widgets/bar_chart_widget.dart';
 
@@ -69,6 +72,18 @@ class PlayerDetailScreen extends ConsumerWidget {
               Tab(text: 'Charts'),
             ],
           ),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.ios_share),
+              tooltip: 'Share',
+              onPressed: () => _showShareSheet(
+                context,
+                ref,
+                player?.displayName ?? 'Player',
+                stats,
+              ),
+            ),
+          ],
         ),
         body: TabBarView(
           children: [
@@ -79,6 +94,126 @@ class PlayerDetailScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  void _showShareSheet(
+    BuildContext context,
+    WidgetRef ref,
+    String playerName,
+    PlayerSeasonStatsModel stats,
+  ) {
+    final activeSeason = ref.read(activeSeasonProvider);
+    final gameLogAsync = activeSeason != null
+        ? ref.read(playerGameLogProvider(
+            (playerId: playerId, seasonId: activeSeason.id)))
+        : const AsyncValue<List<Map<String, dynamic>>>.data([]);
+
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  'Share Stats',
+                  style: Theme.of(ctx).textTheme.titleMedium,
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.bar_chart),
+                title: const Text('Season Summary'),
+                subtitle: const Text('Export season totals as CSV'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _shareSeasonSummary(context, playerName, stats);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.list_alt),
+                title: const Text('Game Log'),
+                subtitle: const Text('Export game-by-game stats as CSV'),
+                enabled: gameLogAsync.valueOrNull?.isNotEmpty ?? false,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  final games = gameLogAsync.valueOrNull ?? [];
+                  _shareGameLog(context, playerName, games);
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _shareSeasonSummary(
+    BuildContext context,
+    String playerName,
+    PlayerSeasonStatsModel stats,
+  ) async {
+    try {
+      final csv = CsvExporter.exportSeasonStats(
+        [stats],
+        'volleyball',
+        playerNames: {stats.playerId: playerName},
+      );
+      final fileName =
+          '${playerName.replaceAll(' ', '_')}_season_stats.csv';
+      await shareCsvContent(csv, fileName);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Export failed: $e')),
+        );
+      }
+    }
+  }
+
+  void _shareGameLog(
+    BuildContext context,
+    String playerName,
+    List<Map<String, dynamic>> games,
+  ) async {
+    try {
+      final gameStats = games.map((row) {
+        final raw = row['stats'];
+        Map<String, dynamic> s;
+        if (raw is String) {
+          s = Map<String, dynamic>.from(jsonDecode(raw) as Map);
+        } else if (raw is Map) {
+          s = Map<String, dynamic>.from(raw);
+        } else {
+          s = {};
+        }
+        return PlayerGameStatsModel(
+          id: row['id'] as String? ?? '',
+          gameId: row['game_id'] as String? ?? '',
+          playerId: playerId,
+          sport: 'volleyball',
+          stats: s,
+          computedAt: DateTime.now(),
+        );
+      }).toList();
+
+      final csv = CsvExporter.exportPlayerGameLog(
+        gameStats,
+        playerName,
+        'volleyball',
+      );
+      final fileName =
+          '${playerName.replaceAll(' ', '_')}_game_log.csv';
+      await shareCsvContent(csv, fileName);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Export failed: $e')),
+        );
+      }
+    }
   }
 
   Widget _buildOverview(

@@ -26,6 +26,7 @@ class _PlayerFormScreenState extends ConsumerState<PlayerFormScreen> {
   late final TextEditingController _firstNameController;
   late final TextEditingController _lastNameController;
   late final TextEditingController _jerseyController;
+  late final TextEditingController _emailController;
   final Set<String> _selectedPositions = {};
 
   bool get isEditing => widget.player != null;
@@ -48,6 +49,8 @@ class _PlayerFormScreenState extends ConsumerState<PlayerFormScreen> {
         TextEditingController(text: widget.player?.lastName ?? '');
     _jerseyController =
         TextEditingController(text: widget.player?.jerseyNumber ?? '');
+    _emailController =
+        TextEditingController(text: widget.player?.email ?? '');
     if (widget.player != null) {
       _selectedPositions.addAll(widget.player!.positions);
     }
@@ -58,6 +61,7 @@ class _PlayerFormScreenState extends ConsumerState<PlayerFormScreen> {
     _firstNameController.dispose();
     _lastNameController.dispose();
     _jerseyController.dispose();
+    _emailController.dispose();
     super.dispose();
   }
 
@@ -142,6 +146,18 @@ class _PlayerFormScreenState extends ConsumerState<PlayerFormScreen> {
                 return null;
               },
             ),
+            const SizedBox(height: 16),
+
+            // Email (optional)
+            TextFormField(
+              controller: _emailController,
+              decoration: const InputDecoration(
+                labelText: 'Email (optional)',
+                hintText: 'player@example.com',
+                prefixIcon: Icon(Icons.email_outlined),
+              ),
+              keyboardType: TextInputType.emailAddress,
+            ),
             const SizedBox(height: 24),
 
             // Positions
@@ -218,6 +234,7 @@ class _PlayerFormScreenState extends ConsumerState<PlayerFormScreen> {
         lastName: _lastNameController.text,
         jerseyNumber: _jerseyController.text,
         positions: _selectedPositions.toList(),
+        email: () => _emailController.text.isEmpty ? null : _emailController.text,
         updatedAt: now,
       );
       ref.read(playersProvider.notifier).updatePlayer(updatedPlayer);
@@ -237,6 +254,7 @@ class _PlayerFormScreenState extends ConsumerState<PlayerFormScreen> {
         lastName: _lastNameController.text,
         jerseyNumber: _jerseyController.text,
         positions: _selectedPositions.toList(),
+        email: _emailController.text.isEmpty ? null : _emailController.text,
         createdAt: now,
         updatedAt: now,
       );

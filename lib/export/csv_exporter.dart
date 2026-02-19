@@ -1,8 +1,4 @@
-import 'dart:io';
-
 import 'package:csv/csv.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 
 import '../domain/models/play_event.dart';
 import '../domain/models/player_stats.dart';
@@ -81,76 +77,6 @@ class CsvExporter {
       for (final g in gameLog) _gameLogRow(g, sport),
     ];
     return _csvConverter.convert(rows);
-  }
-
-  // ── Convenience: generate + write to file ──────────────────────────
-
-  /// Export season stats to a CSV file and return the file path.
-  ///
-  /// Combines [exportSeasonStats] with [saveToFile] for a single-call
-  /// workflow.  If [fileName] is omitted a timestamped name is generated.
-  static Future<String> exportSeasonStatsToFile(
-    List<PlayerSeasonStatsModel> stats,
-    String sport, {
-    Map<String, String> playerNames = const {},
-    String? fileName,
-  }) async {
-    final csvContent =
-        exportSeasonStats(stats, sport, playerNames: playerNames);
-    final name =
-        fileName ?? 'season_stats_${DateTime.now().millisecondsSinceEpoch}.csv';
-    return saveToFile(csvContent, name);
-  }
-
-  /// Export play-by-play events to a CSV file and return the file path.
-  static Future<String> exportPlayByPlayToFile(
-    List<PlayEvent> events,
-    Map<String, String> playerNames, {
-    String? fileName,
-  }) async {
-    final csvContent = exportPlayByPlay(events, playerNames);
-    final name =
-        fileName ?? 'play_by_play_${DateTime.now().millisecondsSinceEpoch}.csv';
-    return saveToFile(csvContent, name);
-  }
-
-  /// Export a player game log to a CSV file and return the file path.
-  static Future<String> exportPlayerGameLogToFile(
-    List<PlayerGameStatsModel> gameLog,
-    String playerName,
-    String sport, {
-    String? fileName,
-  }) async {
-    final csvContent = exportPlayerGameLog(gameLog, playerName, sport);
-    final name =
-        fileName ?? 'game_log_${DateTime.now().millisecondsSinceEpoch}.csv';
-    return saveToFile(csvContent, name);
-  }
-
-  // ── File I/O ─────────────────────────────────────────────────────────
-
-  /// Save [csvContent] to a file in the documents directory and return the
-  /// full file path.
-  static Future<String> saveToFile(
-    String csvContent,
-    String fileName,
-  ) async {
-    final dir = await getApplicationDocumentsDirectory();
-    final file = File('${dir.path}/$fileName');
-    await file.writeAsString(csvContent);
-    return file.path;
-  }
-
-  /// Save [csvContent] to a temporary file and share it via the platform
-  /// share sheet.
-  static Future<void> shareCsv(
-    String csvContent,
-    String fileName,
-  ) async {
-    final dir = await getTemporaryDirectory();
-    final file = File('${dir.path}/$fileName');
-    await file.writeAsString(csvContent);
-    await Share.shareXFiles([XFile(file.path)]);
   }
 
   // ── Private helpers ──────────────────────────────────────────────────

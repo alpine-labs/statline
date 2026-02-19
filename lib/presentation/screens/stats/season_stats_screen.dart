@@ -5,6 +5,8 @@ import '../../providers/stats_providers.dart';
 import '../../providers/team_providers.dart';
 import '../../widgets/export_button.dart';
 import '../../../domain/models/player_stats.dart';
+import '../../../export/csv_exporter.dart';
+import '../../../export/share_service.dart';
 import 'widgets/stats_table.dart';
 import 'player_detail_screen.dart';
 
@@ -36,7 +38,9 @@ class _SeasonStatsScreenState extends ConsumerState<SeasonStatsScreen> {
             tooltip: 'Leaderboards',
             onPressed: () => context.go('/stats/leaderboard'),
           ),
-          const ExportButton(),
+          ExportButton(
+            onExportCsv: () => _exportSeasonCsv(context),
+          ),
         ],
       ),
       body: Column(
@@ -258,5 +262,36 @@ class _SeasonStatsScreenState extends ConsumerState<SeasonStatsScreen> {
     });
 
     return rows;
+  }
+
+  void _exportSeasonCsv(BuildContext context) async {
+    final stats = ref.read(seasonStatsProvider).valueOrNull ?? [];
+    if (stats.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No stats to export')),
+      );
+      return;
+    }
+
+    try {
+      final players = ref.read(playersProvider).valueOrNull ?? [];
+      final playerNames = <String, String>{};
+      for (final p in players) {
+        playerNames[p.id] = p.shortName;
+      }
+
+      final csv = CsvExporter.exportSeasonStats(
+        stats,
+        'volleyball',
+        playerNames: playerNames,
+      );
+      await shareCsvContent(csv, 'season_stats.csv');
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Export failed: $e')),
+        );
+      }
+    }
   }
 }

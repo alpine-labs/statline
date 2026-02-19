@@ -76,8 +76,8 @@ class TeamDao {
 
   Future<int> insertPlayer(Map<String, dynamic> player) {
     return _db.customInsert(
-      'INSERT INTO players (id, first_name, last_name, jersey_number, positions, photo_uri, is_active, created_at, updated_at) '
-      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO players (id, first_name, last_name, jersey_number, positions, photo_uri, email, is_active, created_at, updated_at) '
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       variables: [
         Variable<String>(player['id']),
         Variable<String>(player['first_name']),
@@ -85,6 +85,7 @@ class TeamDao {
         Variable<String>(player['jersey_number']),
         Variable<String>(player['positions'] ?? '[]'),
         Variable<String>(player['photo_uri']),
+        Variable<String>(player['email']),
         Variable<int>(player['is_active'] ?? 1),
         Variable<int>(player['created_at']),
         Variable<int>(player['updated_at']),
@@ -94,7 +95,7 @@ class TeamDao {
 
   Future<int> updatePlayer(Map<String, dynamic> player) {
     return _db.customUpdate(
-      'UPDATE players SET first_name = ?, last_name = ?, jersey_number = ?, positions = ?, photo_uri = ?, is_active = ?, updated_at = ? '
+      'UPDATE players SET first_name = ?, last_name = ?, jersey_number = ?, positions = ?, photo_uri = ?, email = ?, is_active = ?, updated_at = ? '
       'WHERE id = ?',
       variables: [
         Variable<String>(player['first_name']),
@@ -102,6 +103,7 @@ class TeamDao {
         Variable<String>(player['jersey_number']),
         Variable<String>(player['positions']),
         Variable<String>(player['photo_uri']),
+        Variable<String>(player['email']),
         Variable<int>(player['is_active']),
         Variable<int>(player['updated_at']),
         Variable<String>(player['id']),

@@ -7,6 +7,7 @@ class Player {
   final String jerseyNumber;
   final List<String> positions;
   final String? photoUri;
+  final String? email;
   final bool isActive;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -21,6 +22,7 @@ class Player {
     required this.jerseyNumber,
     required this.positions,
     this.photoUri,
+    this.email,
     this.isActive = true,
     required this.createdAt,
     required this.updatedAt,
@@ -33,6 +35,7 @@ class Player {
     String? jerseyNumber,
     List<String>? positions,
     String? Function()? photoUri,
+    String? Function()? email,
     bool? isActive,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -44,6 +47,7 @@ class Player {
       jerseyNumber: jerseyNumber ?? this.jerseyNumber,
       positions: positions ?? this.positions,
       photoUri: photoUri != null ? photoUri() : this.photoUri,
+      email: email != null ? email() : this.email,
       isActive: isActive ?? this.isActive,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -58,6 +62,7 @@ class Player {
       'jersey_number': jerseyNumber,
       'positions': jsonEncode(positions),
       'photo_uri': photoUri,
+      'email': email,
       'is_active': isActive ? 1 : 0,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
@@ -82,6 +87,7 @@ class Player {
       jerseyNumber: map['jersey_number'] as String,
       positions: positions,
       photoUri: map['photo_uri'] as String?,
+      email: map['email'] as String?,
       isActive: map['is_active'] == 1 || map['is_active'] == true,
       createdAt: DateTime.parse(map['created_at'] as String),
       updatedAt: DateTime.parse(map['updated_at'] as String),
@@ -102,6 +108,7 @@ class Player {
         other.lastName != lastName ||
         other.jerseyNumber != jerseyNumber ||
         other.photoUri != photoUri ||
+        other.email != email ||
         other.isActive != isActive ||
         other.createdAt != createdAt ||
         other.updatedAt != updatedAt) {
@@ -123,6 +130,7 @@ class Player {
       jerseyNumber,
       Object.hashAll(positions),
       photoUri,
+      email,
       isActive,
       createdAt,
       updatedAt,

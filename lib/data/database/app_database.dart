@@ -44,7 +44,7 @@ class AppDatabase extends GeneratedDatabase {
   }
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   List<TableInfo<Table, dynamic>> get allTables => [];
@@ -78,6 +78,7 @@ class AppDatabase extends GeneratedDatabase {
               jersey_number TEXT NOT NULL,
               positions TEXT NOT NULL DEFAULT '[]',
               photo_uri TEXT,
+              email TEXT,
               is_active INTEGER NOT NULL DEFAULT 1,
               created_at INTEGER NOT NULL,
               updated_at INTEGER NOT NULL
@@ -264,6 +265,12 @@ class AppDatabase extends GeneratedDatabase {
               'CREATE INDEX idx_player_season_stats_season ON player_season_stats(season_id)');
           await customStatement(
               'CREATE INDEX idx_sync_queue_pending ON sync_queue(synced_at)');
+        },
+        onUpgrade: (m, from, to) async {
+          if (from < 2) {
+            await customStatement(
+                'ALTER TABLE players ADD COLUMN email TEXT');
+          }
         },
       );
 }
