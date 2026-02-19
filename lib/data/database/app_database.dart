@@ -1,10 +1,6 @@
-import 'dart:io';
-
 import 'package:drift/drift.dart';
-import 'package:drift/native.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 
+import 'connection.dart';
 import 'daos/team_dao.dart';
 import 'daos/game_dao.dart';
 import 'daos/stats_dao.dart';
@@ -16,7 +12,7 @@ class AppDatabase extends GeneratedDatabase {
   static AppDatabase? _instance;
 
   static AppDatabase getInstance() {
-    return _instance ??= AppDatabase._(_openConnection());
+    return _instance ??= AppDatabase._(openConnection());
   }
 
   // DAOs — lazily initialized
@@ -270,12 +266,4 @@ class AppDatabase extends GeneratedDatabase {
               'CREATE INDEX idx_sync_queue_pending ON sync_queue(synced_at)');
         },
       );
-}
-
-LazyDatabase _openConnection() {
-  return LazyDatabase(() async {
-    final dbFolder = await getApplicationDocumentsDirectory();
-    final file = File(p.join(dbFolder.path, 'statline.db'));
-    return NativeDatabase.createInBackground(file);
-  });
 }
