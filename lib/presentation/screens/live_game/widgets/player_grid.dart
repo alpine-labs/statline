@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../domain/models/player.dart';
 import '../../../../core/theme/colors.dart';
-import '../../../../domain/sports/volleyball/volleyball_stats.dart';
-import 'action_palette.dart';
 
 /// Grid of player buttons for selecting who performed an action.
 class PlayerGrid extends StatelessWidget {

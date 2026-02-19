@@ -414,7 +414,7 @@ class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
     final abbr = _actionAbbreviation(type, result);
     _badgeTimers[playerId]?.cancel();
     setState(() {
-      _lastActionBadges = {..._lastActionBadges, playerId: abbr};
+      _lastActionBadges = {..._lastActionBadges}..[playerId] = abbr;
     });
     _badgeTimers[playerId] = Timer(const Duration(seconds: 3), () {
       if (mounted) {

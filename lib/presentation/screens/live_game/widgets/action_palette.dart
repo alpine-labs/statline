@@ -38,11 +38,11 @@ class ActionPalette extends StatelessWidget {
   static const _quickActions = [
     ActionDef(label: 'Kill', category: 'attack', type: 'attack', result: 'kill', icon: Icons.flash_on, tone: ActionTone.positive, scoreChange: 1),
     ActionDef(label: 'Error', category: 'attack', type: 'attack', result: 'error', icon: Icons.error_outline, tone: ActionTone.negative, scoreChange: -1),
-    ActionDef(label: 'Ace', category: 'serve', type: 'serve', result: 'ace', icon: Icons.star, tone: ActionTone.positive, scoreChange: 1),
-    ActionDef(label: 'Srv Err', category: 'serve', type: 'serve', result: 'error', icon: Icons.close, tone: ActionTone.negative, scoreChange: -1),
-    ActionDef(label: 'Block', category: 'block', type: 'block', result: 'solo', icon: Icons.front_hand, tone: ActionTone.positive, scoreChange: 1),
     ActionDef(label: 'Dig', category: 'defense', type: 'dig', result: 'success', icon: Icons.sports, tone: ActionTone.neutral),
     ActionDef(label: 'Assist', category: 'setting', type: 'assist', result: 'success', icon: Icons.handshake, tone: ActionTone.positive),
+    ActionDef(label: 'Block', category: 'block', type: 'block', result: 'solo', icon: Icons.front_hand, tone: ActionTone.positive, scoreChange: 1),
+    ActionDef(label: 'Ace', category: 'serve', type: 'serve', result: 'ace', icon: Icons.star, tone: ActionTone.positive, scoreChange: 1),
+    ActionDef(label: 'Srv Err', category: 'serve', type: 'serve', result: 'error', icon: Icons.close, tone: ActionTone.negative, scoreChange: -1),
     ActionDef(label: 'Opp Err', category: 'opponent', type: 'error', result: 'error', icon: Icons.celebration, tone: ActionTone.positive, scoreChange: 1),
   ];
 
@@ -61,12 +61,28 @@ class ActionPalette extends StatelessWidget {
     ActionDef(label: 'Rec Err', category: 'reception', type: 'reception', result: 'error', icon: Icons.error, tone: ActionTone.negative, scoreChange: -1),
   ];
 
+  // Category grouping for detailed mode, keyed by display label.
+  static const _categoryOrder = ['ATTACK', 'SERVE', 'BLOCK', 'DIG/PASS', 'SET', 'OPP'];
+
+  static const _actionToCategory = <String, String>{
+    'Kill': 'ATTACK', 'Error': 'ATTACK', 'Atk Blk': 'ATTACK', '0 Atk': 'ATTACK',
+    'Ace': 'SERVE', 'Srv Err': 'SERVE', 'Srv In': 'SERVE',
+    'Block': 'BLOCK', 'Blk Ast': 'BLOCK', 'Blk Err': 'BLOCK',
+    'Dig': 'DIG/PASS', 'Dig Err': 'DIG/PASS', 'Pass 3': 'DIG/PASS',
+    'Pass 2': 'DIG/PASS', 'Pass 1': 'DIG/PASS', 'Pass 0': 'DIG/PASS', 'Rec Err': 'DIG/PASS',
+    'Assist': 'SET', 'Set Err': 'SET',
+    'Opp Err': 'OPP',
+  };
+
   @override
   Widget build(BuildContext context) {
-    final actions = entryMode == 'detailed'
-        ? [..._quickActions, ..._detailedExtraActions]
-        : _quickActions;
+    if (entryMode != 'detailed') {
+      return _buildQuickGrid();
+    }
+    return _buildDetailedGrouped();
+  }
 
+  Widget _buildQuickGrid() {
     return Container(
       decoration: const BoxDecoration(
         color: Color(0xFF1A1A1A),
@@ -82,15 +98,73 @@ class ActionPalette extends StatelessWidget {
           crossAxisSpacing: 6,
           mainAxisSpacing: 6,
         ),
-        itemCount: actions.length,
+        itemCount: _quickActions.length,
         itemBuilder: (context, index) {
-          final action = actions[index];
+          final action = _quickActions[index];
           return _ActionButton(
             action: action,
             onTap: () => onAction(
                 action.category, action.type, action.result, action.scoreChange),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildDetailedGrouped() {
+    final allActions = [..._quickActions, ..._detailedExtraActions];
+    final grouped = <String, List<ActionDef>>{};
+    for (final cat in _categoryOrder) {
+      grouped[cat] = [];
+    }
+    for (final action in allActions) {
+      final cat = _actionToCategory[action.label] ?? 'OPP';
+      grouped[cat]!.add(action);
+    }
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFF1A1A1A),
+        border: Border(top: BorderSide(color: Color(0xFF333333))),
+      ),
+      constraints: const BoxConstraints(maxHeight: 200),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final cat in _categoryOrder)
+              if (grouped[cat]!.isNotEmpty) ...[
+                Padding(
+                  padding: const EdgeInsets.only(left: 2, top: 4, bottom: 2),
+                  child: Text(
+                    cat,
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: Colors.grey,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: grouped[cat]!.map((action) {
+                    return SizedBox(
+                      width: 80,
+                      height: 50,
+                      child: _ActionButton(
+                        action: action,
+                        onTap: () => onAction(action.category, action.type,
+                            action.result, action.scoreChange),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+          ],
+        ),
       ),
     );
   }
