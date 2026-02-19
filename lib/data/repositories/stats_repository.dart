@@ -192,6 +192,20 @@ class StatsRepository {
     return rows.map(PlayerGameStatsModel.fromMap).toList();
   }
 
+  /// Returns game log rows with joined game info (opponent, date, result).
+  Future<List<Map<String, dynamic>>> getPlayerGameLogWithGameInfo(
+      String playerId, String seasonId) async {
+    return await _db.query(
+      '''SELECT pgs.*, g.opponent_name, g.game_date, g.result,
+                g.final_score_us, g.final_score_them
+         FROM player_game_stats pgs
+         INNER JOIN games g ON g.id = pgs.game_id
+         WHERE pgs.player_id = ? AND g.season_id = ?
+         ORDER BY g.game_date ASC''',
+      [playerId, seasonId],
+    );
+  }
+
   // ---------------------------------------------------------------------------
   // Leaderboards
   // ---------------------------------------------------------------------------

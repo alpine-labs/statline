@@ -69,6 +69,14 @@ final statsAggregationServiceProvider = Provider<StatsAggregationService>((ref) 
   return StatsAggregationService(ref.read(statsRepositoryProvider));
 });
 
+// ── Game Log Provider ────────────────────────────────────────────────────────
+
+final playerGameLogProvider = FutureProvider.family<List<Map<String, dynamic>>,
+    ({String playerId, String seasonId})>((ref, args) async {
+  final repo = ref.read(statsRepositoryProvider);
+  return repo.getPlayerGameLogWithGameInfo(args.playerId, args.seasonId);
+});
+
 // ── Providers ────────────────────────────────────────────────────────────────
 
 final seasonStatsProvider = StateNotifierProvider<SeasonStatsNotifier,
