@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../providers/stats_providers.dart';
 import '../../providers/team_providers.dart';
 import '../../widgets/export_button.dart';
@@ -29,8 +30,13 @@ class _SeasonStatsScreenState extends ConsumerState<SeasonStatsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Season Stats'),
-        actions: const [
-          ExportButton(),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.leaderboard),
+            tooltip: 'Leaderboards',
+            onPressed: () => context.go('/stats/leaderboard'),
+          ),
+          const ExportButton(),
         ],
       ),
       body: Column(

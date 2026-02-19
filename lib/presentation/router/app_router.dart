@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../screens/dashboard/dashboard_screen.dart';
 import '../screens/live_game/live_game_screen.dart';
 import '../screens/stats/season_stats_screen.dart';
+import '../screens/stats/leaderboard_screen.dart';
 import '../screens/teams/teams_screen.dart';
 import '../screens/settings/settings_screen.dart';
 
@@ -35,6 +36,12 @@ final GoRouter appRouter = GoRouter(
             GoRoute(
               path: '/stats',
               builder: (_, __) => const SeasonStatsScreen(),
+              routes: [
+                GoRoute(
+                  path: 'leaderboard',
+                  builder: (_, __) => const LeaderboardScreen(),
+                ),
+              ],
             ),
           ],
         ),
