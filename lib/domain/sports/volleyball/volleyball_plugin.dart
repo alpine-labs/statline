@@ -58,6 +58,8 @@ class VolleyballPlugin extends SportPlugin {
     final servesTotal =
         aces + serveErrors + ((totals['serves_in_play'] as num?)?.toInt() ?? 0);
     final passRatingTotal = (totals['pass_rating'] as num?)?.toDouble() ?? 0.0;
+    final pass3Count = (totals['pass_3_count'] as num?)?.toInt() ?? 0;
+    final passAttempts = (totals['pass_attempts'] as num?)?.toInt() ?? 0;
     final points = (totals['points'] as num?)?.toDouble() ?? 0.0;
 
     return {
@@ -70,6 +72,10 @@ class VolleyballPlugin extends SportPlugin {
       'pass_rating_avg':
           gamesPlayed > 0 ? passRatingTotal / gamesPlayed : 0.0,
       'serve_error_pct': servesTotal > 0 ? serveErrors / servesTotal : 0.0,
+      'perfect_pass_pct': VolleyballStats.computePerfectPassPercentage(
+          pass3Count, passAttempts),
+      'serve_efficiency': VolleyballStats.computeServeEfficiency(
+          aces, serveErrors, servesTotal),
       'points_per_set': points / totalSets,
     };
   }
@@ -154,6 +160,16 @@ class VolleyballPlugin extends SportPlugin {
             label: 'Serve Error %',
             shortLabel: 'SE%',
             format: 'percentage'),
+        const StatColumn(
+            key: 'perfect_pass_pct',
+            label: 'Perfect Pass %',
+            shortLabel: 'PP%',
+            format: 'decimal3'),
+        const StatColumn(
+            key: 'serve_efficiency',
+            label: 'Serve Efficiency',
+            shortLabel: 'SrEff',
+            format: 'decimal3'),
         const StatColumn(
             key: 'points_per_set',
             label: 'Points/Set',

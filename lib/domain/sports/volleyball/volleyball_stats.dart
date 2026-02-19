@@ -19,6 +19,20 @@ class VolleyballStats {
     return sum / ratings.length;
   }
 
+  /// Perfect pass percentage: pass_3_count / total receptions.
+  /// Returns 0.0 if totalReceptions is 0.
+  static double computePerfectPassPercentage(int pass3Count, int totalReceptions) {
+    if (totalReceptions == 0) return 0.0;
+    return pass3Count / totalReceptions;
+  }
+
+  /// Serve efficiency: (aces - serveErrors) / serveAttempts.
+  /// Returns 0.0 if serveAttempts is 0.
+  static double computeServeEfficiency(int aces, int serveErrors, int serveAttempts) {
+    if (serveAttempts == 0) return 0.0;
+    return (aces - serveErrors) / serveAttempts;
+  }
+
   /// Side-out percentage: points scored on opponent's serve / opponent serve attempts.
   static double computeSideOutPercentage(
       int pointsScoredOnOpponentServe, int opponentServeAttempts) {
@@ -61,6 +75,7 @@ class VolleyballStats {
     int assists = 0;
     int setErrors = 0;
     int passAttempts = 0;
+    int pass3Count = 0;
     final List<double> passRatings = [];
 
     for (final event in filtered) {
@@ -119,6 +134,7 @@ class VolleyballStats {
         case 'pass_3':
           passRatings.add(3.0);
           passAttempts++;
+          pass3Count++;
           break;
         case 'pass_2':
           passRatings.add(2.0);
@@ -145,9 +161,12 @@ class VolleyballStats {
     }
 
     final totalBlocks = blockSolos + blockAssists;
+    final serveAttempts = aces + serveErrors + servesInPlay;
     final hittingPct =
         computeHittingPercentage(kills, attackErrors, attackAttempts);
     final passRating = computePassRating(passRatings);
+    final perfectPassPct = computePerfectPassPercentage(pass3Count, passAttempts);
+    final serveEfficiency = computeServeEfficiency(aces, serveErrors, serveAttempts);
     final points = computePoints(kills, aces, blockSolos, blockAssists);
 
     return {
@@ -167,7 +186,11 @@ class VolleyballStats {
       'assists': assists,
       'set_errors': setErrors,
       'pass_attempts': passAttempts,
+      'pass_3_count': pass3Count,
       'pass_rating': passRating,
+      'perfect_pass_pct': perfectPassPct,
+      'serve_attempts': serveAttempts,
+      'serve_efficiency': serveEfficiency,
       'points': points,
     };
   }

@@ -155,12 +155,14 @@ class _SeasonStatsScreenState extends ConsumerState<SeasonStatsScreen> {
           gpCol,
           const StatsColumnDef(key: 'serviceAces', label: 'SA'),
           const StatsColumnDef(key: 'serviceErrors', label: 'SE'),
+          const StatsColumnDef(key: 'serveEfficiency', label: 'SrEff'),
         ],
       'Defense' => [
           playerCol,
           gpCol,
           const StatsColumnDef(key: 'digs', label: 'D'),
           const StatsColumnDef(key: 'receptionErrors', label: 'RE'),
+          const StatsColumnDef(key: 'perfectPassPct', label: 'PP%'),
         ],
       'Blocking' => [
           playerCol,
@@ -183,6 +185,8 @@ class _SeasonStatsScreenState extends ConsumerState<SeasonStatsScreen> {
           const StatsColumnDef(key: 'blockSolos', label: 'BS'),
           const StatsColumnDef(key: 'blockAssists', label: 'BA'),
           const StatsColumnDef(key: 'totalBlocks', label: 'TB'),
+          const StatsColumnDef(key: 'perfectPassPct', label: 'PP%'),
+          const StatsColumnDef(key: 'serveEfficiency', label: 'SrEff'),
           const StatsColumnDef(key: 'points', label: 'Pts'),
         ],
     };
@@ -220,6 +224,10 @@ class _SeasonStatsScreenState extends ConsumerState<SeasonStatsScreen> {
         'blockAssists': ba,
         'totalBlocks': bs + ba,
         'receptionErrors': totals['receptionErrors'] ?? 0,
+        'passAttempts': totals['passAttempts'] ?? 0,
+        'serveAttempts': totals['serveAttempts'] ?? 0,
+        'perfectPassPct': metrics['perfectPassPct'] ?? 0.0,
+        'serveEfficiency': metrics['serveEfficiency'] ?? 0.0,
         'points': totals['points'] ?? 0,
       };
 

@@ -90,8 +90,23 @@ class StatsTable extends StatelessWidget {
                 String displayValue;
 
                 if (col.key == 'hittingPercentage' && value is double) {
-                  displayValue =
-                      '.${(value * 1000).round().toString().padLeft(3, '0')}';
+                  final attempts = row.values['totalAttempts'];
+                  if (attempts is num && attempts == 0) {
+                    displayValue = '---';
+                  } else {
+                    displayValue =
+                        '.${(value * 1000).round().toString().padLeft(3, '0')}';
+                  }
+                } else if ((col.key == 'perfectPassPct' || col.key == 'serveEfficiency') && value is double) {
+                  final attempts = col.key == 'perfectPassPct'
+                      ? row.values['passAttempts']
+                      : row.values['serveAttempts'];
+                  if (attempts is num && attempts == 0) {
+                    displayValue = '---';
+                  } else {
+                    displayValue =
+                        '.${(value * 1000).round().toString().padLeft(3, '0')}';
+                  }
                 } else {
                   displayValue = '$value';
                 }
