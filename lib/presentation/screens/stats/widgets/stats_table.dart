@@ -29,6 +29,8 @@ class StatsTable extends StatelessWidget {
   final bool sortAscending;
   final void Function(String key, bool ascending)? onSort;
   final void Function(String playerId)? onRowTap;
+  final Set<String> selectedPlayerIds;
+  final void Function(String playerId, bool selected)? onRowSelected;
 
   const StatsTable({
     super.key,
@@ -38,6 +40,8 @@ class StatsTable extends StatelessWidget {
     this.sortAscending = false,
     this.onSort,
     this.onRowTap,
+    this.selectedPlayerIds = const {},
+    this.onRowSelected,
   });
 
   int? _resolveSortIndex() {
@@ -75,15 +79,21 @@ class StatsTable extends StatelessWidget {
           rows: List.generate(rows.length, (index) {
             final row = rows[index];
             final isEvenRow = index % 2 == 0;
+            final isSelected = selectedPlayerIds.contains(row.playerId);
 
             return DataRow(
-              color: WidgetStateProperty.all(
-                isEvenRow
+              selected: isSelected,
+              color: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.selected)) {
+                  return colorScheme.primaryContainer.withAlpha(100);
+                }
+                return isEvenRow
                     ? Colors.transparent
-                    : colorScheme.surfaceContainerLow,
-              ),
-              onSelectChanged: onRowTap != null
-                  ? (_) => onRowTap!(row.playerId)
+                    : colorScheme.surfaceContainerLow;
+              }),
+              onSelectChanged: onRowSelected != null
+                  ? (selected) =>
+                      onRowSelected!(row.playerId, selected ?? false)
                   : null,
               cells: columns.map((col) {
                 final value = row.values[col.key];
@@ -111,6 +121,18 @@ class StatsTable extends StatelessWidget {
                   displayValue = '$value';
                 }
 
+                if (col.key == 'player' && onRowTap != null) {
+                  return DataCell(
+                    Text(
+                      displayValue,
+                      style: TextStyle(
+                        color: colorScheme.primary,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                    onTap: () => onRowTap!(row.playerId),
+                  );
+                }
                 return DataCell(Text(displayValue));
               }).toList(),
             );

@@ -21,6 +21,7 @@ class _SeasonStatsScreenState extends ConsumerState<SeasonStatsScreen> {
   String _activeFilter = 'All';
   String _sortColumn = 'kills';
   bool _sortAscending = false;
+  final Set<String> _selectedPlayerIds = {};
 
   static const _filters = ['All', 'Hitting', 'Serving', 'Defense', 'Blocking'];
 
@@ -31,8 +32,16 @@ class _SeasonStatsScreenState extends ConsumerState<SeasonStatsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Season Stats'),
+        title: Text(_selectedPlayerIds.isEmpty
+            ? 'Season Stats'
+            : '${_selectedPlayerIds.length} Selected'),
         actions: [
+          if (_selectedPlayerIds.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.close),
+              tooltip: 'Clear selection',
+              onPressed: () => setState(() => _selectedPlayerIds.clear()),
+            ),
           IconButton(
             icon: const Icon(Icons.leaderboard),
             tooltip: 'Leaderboards',
@@ -119,6 +128,7 @@ class _SeasonStatsScreenState extends ConsumerState<SeasonStatsScreen> {
                   rows: rows,
                   sortColumnKey: _sortColumn,
                   sortAscending: _sortAscending,
+                  selectedPlayerIds: _selectedPlayerIds,
                   onSort: (key, ascending) {
                     setState(() {
                       _sortColumn = key;
@@ -133,6 +143,15 @@ class _SeasonStatsScreenState extends ConsumerState<SeasonStatsScreen> {
                             PlayerDetailScreen(playerId: playerId),
                       ),
                     );
+                  },
+                  onRowSelected: (playerId, selected) {
+                    setState(() {
+                      if (selected) {
+                        _selectedPlayerIds.add(playerId);
+                      } else {
+                        _selectedPlayerIds.remove(playerId);
+                      }
+                    });
                   },
                 );
               },
@@ -265,12 +284,19 @@ class _SeasonStatsScreenState extends ConsumerState<SeasonStatsScreen> {
   }
 
   void _exportSeasonCsv(BuildContext context) async {
-    final stats = ref.read(seasonStatsProvider).valueOrNull ?? [];
+    var stats = ref.read(seasonStatsProvider).valueOrNull ?? [];
     if (stats.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No stats to export')),
       );
       return;
+    }
+
+    // If players are selected, only export those
+    if (_selectedPlayerIds.isNotEmpty) {
+      stats = stats
+          .where((s) => _selectedPlayerIds.contains(s.playerId))
+          .toList();
     }
 
     try {
