@@ -44,58 +44,62 @@ class StatsTable extends StatelessWidget {
     this.onRowSelected,
   });
 
-  int? _resolveSortIndex() {
+  int? _resolveSortIndex([bool hasCheckboxColumn = false]) {
     if (sortColumnKey == null) return null;
     final idx = columns.indexWhere((c) => c.key == sortColumnKey);
-    return idx >= 0 ? idx : null;
+    if (idx < 0) return null;
+    return hasCheckboxColumn ? idx + 1 : idx;
   }
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
+    // Build column list: prepend checkbox column if selection is enabled
+    final hasSelection = onRowSelected != null;
+    final tableColumns = <DataColumn>[
+      if (hasSelection)
+        const DataColumn(label: SizedBox.shrink(), numeric: false),
+      ...columns.map((col) {
+        return DataColumn(
+          label: Text(
+            col.label,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          numeric: col.isNumeric,
+          onSort: onSort != null
+              ? (index, ascending) => onSort!(col.key, ascending)
+              : null,
+        );
+      }),
+    ];
+
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: SingleChildScrollView(
         child: DataTable(
-          sortColumnIndex: _resolveSortIndex(),
+          sortColumnIndex: _resolveSortIndex(hasSelection),
           sortAscending: sortAscending,
           columnSpacing: 16,
           headingRowColor: WidgetStateProperty.all(
             colorScheme.surfaceContainerHighest,
           ),
-          columns: columns.map((col) {
-            return DataColumn(
-              label: Text(
-                col.label,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              numeric: col.isNumeric,
-              onSort: onSort != null
-                  ? (index, ascending) => onSort!(col.key, ascending)
-                  : null,
-            );
-          }).toList(),
+          columns: tableColumns,
           rows: List.generate(rows.length, (index) {
             final row = rows[index];
             final isEvenRow = index % 2 == 0;
             final isSelected = selectedPlayerIds.contains(row.playerId);
 
-            return DataRow(
-              selected: isSelected,
-              color: WidgetStateProperty.resolveWith((states) {
-                if (states.contains(WidgetState.selected)) {
-                  return colorScheme.primaryContainer.withAlpha(100);
-                }
-                return isEvenRow
-                    ? Colors.transparent
-                    : colorScheme.surfaceContainerLow;
-              }),
-              onSelectChanged: onRowSelected != null
-                  ? (selected) =>
-                      onRowSelected!(row.playerId, selected ?? false)
-                  : null,
-              cells: columns.map((col) {
+            final dataCells = <DataCell>[
+              if (hasSelection)
+                DataCell(
+                  Checkbox(
+                    value: isSelected,
+                    onChanged: (val) =>
+                        onRowSelected!(row.playerId, val ?? false),
+                  ),
+                ),
+              ...columns.map((col) {
                 final value = row.values[col.key];
                 String displayValue;
 
@@ -134,7 +138,20 @@ class StatsTable extends StatelessWidget {
                   );
                 }
                 return DataCell(Text(displayValue));
-              }).toList(),
+              }),
+            ];
+
+            return DataRow(
+              selected: isSelected,
+              color: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.selected)) {
+                  return colorScheme.primaryContainer.withAlpha(100);
+                }
+                return isEvenRow
+                    ? Colors.transparent
+                    : colorScheme.surfaceContainerLow;
+              }),
+              cells: dataCells,
             );
           }),
         ),
