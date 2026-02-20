@@ -36,12 +36,18 @@ class _SeasonStatsScreenState extends ConsumerState<SeasonStatsScreen> {
             ? 'Season Stats'
             : '${_selectedPlayerIds.length} Selected'),
         actions: [
-          if (_selectedPlayerIds.isNotEmpty)
+          if (_selectedPlayerIds.isNotEmpty) ...[
+            IconButton(
+              icon: const Icon(Icons.ios_share),
+              tooltip: 'Export selected',
+              onPressed: () => _exportSeasonCsv(context),
+            ),
             IconButton(
               icon: const Icon(Icons.close),
               tooltip: 'Clear selection',
               onPressed: () => setState(() => _selectedPlayerIds.clear()),
             ),
+          ],
           IconButton(
             icon: const Icon(Icons.leaderboard),
             tooltip: 'Leaderboards',
