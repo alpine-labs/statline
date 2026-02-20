@@ -144,6 +144,14 @@ class TeamsScreen extends ConsumerWidget {
               },
             ),
             ListTile(
+              leading: const Icon(Icons.copy),
+              title: const Text('Copy Team'),
+              onTap: () {
+                Navigator.pop(context);
+                _showCopyTeamDialog(context, ref, team);
+              },
+            ),
+            ListTile(
               leading: Icon(Icons.delete,
                   color: Theme.of(context).colorScheme.error),
               title: Text(
@@ -191,6 +199,99 @@ class TeamsScreen extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+
+  void _showCopyTeamDialog(
+      BuildContext context, WidgetRef ref, Team source) {
+    final nameController = TextEditingController(text: '${source.name} (Copy)');
+    bool copyRoster = true;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Copy Team'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: nameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Team Name',
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${source.sport[0].toUpperCase()}${source.sport.substring(1)} • ${source.level} • ${source.gender}${source.ageGroup != null ? ' • ${source.ageGroup}' : ''}',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurface
+                                .withAlpha(153),
+                          ),
+                    ),
+                    const SizedBox(height: 16),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Copy roster'),
+                      subtitle: const Text('Include all players'),
+                      value: copyRoster,
+                      onChanged: (v) =>
+                          setDialogState(() => copyRoster = v),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    if (nameController.text.isEmpty) return;
+                    final now = DateTime.now();
+                    final newTeamId = 'team_${now.millisecondsSinceEpoch}';
+                    final newTeam = source.copyWith(
+                      id: newTeamId,
+                      name: nameController.text,
+                      createdAt: now,
+                      updatedAt: now,
+                    );
+                    ref.read(teamsProvider.notifier).addTeam(newTeam);
+
+                    if (copyRoster) {
+                      final roster = ref.read(rosterProvider);
+                      roster.whenData((entries) {
+                        final sourceEntries = entries
+                            .where((e) => e.teamId == source.id)
+                            .toList();
+                        for (var i = 0; i < sourceEntries.length; i++) {
+                          final e = sourceEntries[i];
+                          ref.read(rosterProvider.notifier).addEntry(
+                                e.copyWith(
+                                  id: 'roster_${now.millisecondsSinceEpoch}_$i',
+                                  teamId: newTeamId,
+                                  joinedDate: now,
+                                ),
+                              );
+                        }
+                      });
+                    }
+
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Copy'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
