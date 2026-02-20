@@ -1,32 +1,39 @@
 import 'package:flutter/material.dart';
 
-/// Sport-themed color system for StatLine.
+/// Nordic Muted color system for StatLine.
 class StatLineColors {
   StatLineColors._();
 
-  // ── Dark game mode colors ──────────────────────────────────────────────
-  static const Color darkBackground = Color(0xFF121212);
-  static const Color darkSurface = Color(0xFF1E1E1E);
-  static const Color primaryAccent = Color(0xFFFF6B35); // volleyball orange
-  static const Color secondaryAccent = Color(0xFF00B4D8); // teal
+  // ── Nordic Muted palette ───────────────────────────────────────────────
+  static const Color nordicSlate = Color(0xFF555B73);
+  static const Color nordicCream = Color(0xFFE0DFD3);
+  static const Color nordicSage = Color(0xFFC0BFAE);
+  static const Color nordicGray = Color(0xFFB4B7BD);
+  static const Color nordicMedium = Color(0xFF82858E);
+
+  // ── Dark mode colors ──────────────────────────────────────────────────
+  static const Color darkBackground = Color(0xFF1A1C24);
+  static const Color darkSurface = Color(0xFF252833);
+  static const Color primaryAccent = nordicSlate;
+  static const Color secondaryAccent = nordicSage;
 
   // ── Scoring feedback ───────────────────────────────────────────────────
   static const Color pointScored = Color(0xFF4CAF50);
   static const Color pointLost = Color(0xFFEF5350);
 
   // ── Light mode ─────────────────────────────────────────────────────────
-  static const Color lightBackground = Color(0xFFFAFAFA);
-  static const Color lightSurface = Color(0xFFFFFFFF);
+  static const Color lightBackground = nordicCream;
+  static const Color lightSurface = Color(0xFFF0EFE6);
 
   // ── Neutral / text ─────────────────────────────────────────────────────
-  static const Color onDarkBackground = Color(0xFFE0E0E0);
-  static const Color onLightBackground = Color(0xFF212121);
+  static const Color onDarkBackground = nordicCream;
+  static const Color onLightBackground = Color(0xFF2C2E36);
   static const Color onPrimary = Color(0xFFFFFFFF);
-  static const Color disabled = Color(0xFF9E9E9E);
+  static const Color disabled = nordicGray;
 
   // ── Per-sport accent colors ────────────────────────────────────────────
   static const Map<String, Color> sportAccents = {
-    'volleyball': Color(0xFFFF6B35),
+    'volleyball': nordicSlate,
     'basketball': Color(0xFF1565C0),
     'slowpitch': Color(0xFF2E7D32),
     'baseball': Color(0xFFC62828),
@@ -44,34 +51,44 @@ class StatLineColors {
 
   static ColorScheme get lightColorScheme => const ColorScheme(
         brightness: Brightness.light,
-        primary: primaryAccent,
+        primary: nordicSlate,
         onPrimary: onPrimary,
-        secondary: secondaryAccent,
-        onSecondary: onPrimary,
+        secondary: nordicSage,
+        onSecondary: onLightBackground,
+        tertiary: nordicMedium,
+        onTertiary: onPrimary,
         error: pointLost,
         onError: onPrimary,
         surface: lightSurface,
         onSurface: onLightBackground,
+        surfaceContainerHighest: nordicCream,
+        surfaceContainerLow: Color(0xFFEAE9DD),
+        outline: nordicGray,
       );
 
   static ColorScheme get darkColorScheme => const ColorScheme(
         brightness: Brightness.dark,
-        primary: primaryAccent,
-        onPrimary: onPrimary,
-        secondary: secondaryAccent,
+        primary: nordicSage,
+        onPrimary: onLightBackground,
+        secondary: nordicSlate,
         onSecondary: onPrimary,
+        tertiary: nordicGray,
+        onTertiary: onLightBackground,
         error: pointLost,
         onError: onPrimary,
         surface: darkSurface,
         onSurface: onDarkBackground,
+        surfaceContainerHighest: Color(0xFF323542),
+        surfaceContainerLow: Color(0xFF2A2D38),
+        outline: nordicMedium,
       );
 
   /// High-contrast dark scheme optimized for live game stat entry.
   static ColorScheme get gameModeColorScheme => const ColorScheme(
         brightness: Brightness.dark,
-        primary: primaryAccent,
-        onPrimary: onPrimary,
-        secondary: secondaryAccent,
+        primary: nordicSage,
+        onPrimary: onLightBackground,
+        secondary: nordicSlate,
         onSecondary: onPrimary,
         error: pointLost,
         onError: onPrimary,

@@ -96,7 +96,7 @@ class _BoxScoreCard extends StatelessWidget {
 
   static const _bg = Color(0xFF121212);
   static const _surface = Color(0xFF1E1E1E);
-  static const _accent = Color(0xFFFF6B35);
+  static const _accent = Color(0xFF555B73);
   static const _textPrimary = Color(0xFFF5F5F5);
   static const _textSecondary = Color(0xFFB0B0B0);
   static const _divider = Color(0xFF333333);

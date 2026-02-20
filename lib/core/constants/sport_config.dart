@@ -5,7 +5,7 @@ enum Sport {
   volleyball(
     displayName: 'Volleyball',
     icon: Icons.sports_volleyball,
-    accentColor: Color(0xFFFF6B35),
+    accentColor: Color(0xFF555B73),
   ),
   basketball(
     displayName: 'Basketball',
