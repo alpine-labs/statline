@@ -11,7 +11,8 @@ class StatLineColors {
   static const Color nordicGray = Color(0xFFB4B7BD);
   static const Color nordicMedium = Color(0xFF82858E);
 
-  // ── Dark mode colors ──────────────────────────────────────────────────
+  // ── Branding ────────────────────────────────────────────────────────────
+  static const Color logoGreen = Color(0xFF4A6355);
   static const Color darkBackground = Color(0xFF1A1C24);
   static const Color darkSurface = Color(0xFF252833);
   static const Color primaryAccent = nordicSlate;

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/feature_flags/feature_flags.dart';
+import '../../../core/theme/colors.dart';
 
 // ── Settings providers ───────────────────────────────────────────────────────
 
@@ -174,10 +175,16 @@ class SettingsScreen extends ConsumerWidget {
 
           // ── About ───────────────────────────────────────────────────────
           _SectionHeader(title: 'About'),
-          const ListTile(
-            leading: Icon(Icons.info_outline),
-            title: Text('StatLine'),
-            subtitle: Text('Version 1.0.0'),
+          ListTile(
+            leading: const Icon(Icons.info_outline),
+            title: Text(
+              'StatLine',
+              style: TextStyle(
+                color: StatLineColors.logoGreen,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            subtitle: const Text('Version 1.0.0'),
           ),
           const ListTile(
             leading: Icon(Icons.code),

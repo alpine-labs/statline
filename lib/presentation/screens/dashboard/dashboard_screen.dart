@@ -30,7 +30,13 @@ class DashboardScreen extends ConsumerWidget {
           children: [
             SportIcon(sport: selectedTeam.sport, size: 28),
             const SizedBox(width: 8),
-            const Text('StatLine'),
+            Text(
+              'StatLine',
+              style: TextStyle(
+                color: StatLineColors.logoGreen,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ],
         ),
         actions: [
@@ -152,9 +158,15 @@ class DashboardScreen extends ConsumerWidget {
         title: Row(
           children: [
             Icon(Icons.sports_volleyball,
-                color: Theme.of(context).colorScheme.primary),
+                color: StatLineColors.logoGreen),
             const SizedBox(width: 8),
-            const Text('StatLine'),
+            Text(
+              'StatLine',
+              style: TextStyle(
+                color: StatLineColors.logoGreen,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ],
         ),
       ),
