@@ -23,6 +23,14 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Cache pub dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+          key: pub-${{ hashFiles('pubspec.lock') }}
+          restore-keys: pub-
+
       - name: Install dependencies
         run: flutter pub get
 
@@ -40,6 +48,12 @@ jobs:
           mkdir -p .vercel/output/static
           cp -r build/web/* .vercel/output/static/
           echo '{"version":3,"routes":[{"handle":"filesystem"},{"src":"/(.*)", "dest":"/index.html"}]}' > .vercel/output/config.json
+
+      - name: Cache Vercel CLI
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-vercel-${{ runner.os }}
 
       - name: Install Vercel CLI
         run: npm install -g vercel@latest
