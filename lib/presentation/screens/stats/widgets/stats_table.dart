@@ -31,6 +31,7 @@ class StatsTable extends StatelessWidget {
   final void Function(String playerId)? onRowTap;
   final Set<String> selectedPlayerIds;
   final void Function(String playerId, bool selected)? onRowSelected;
+  final void Function(bool selectAll)? onSelectAll;
 
   const StatsTable({
     super.key,
@@ -42,6 +43,7 @@ class StatsTable extends StatelessWidget {
     this.onRowTap,
     this.selectedPlayerIds = const {},
     this.onRowSelected,
+    this.onSelectAll,
   });
 
   int? _resolveSortIndex([bool hasCheckboxColumn = false]) {
@@ -57,9 +59,23 @@ class StatsTable extends StatelessWidget {
 
     // Build column list: prepend checkbox column if selection is enabled
     final hasSelection = onRowSelected != null;
+    final allSelected =
+        hasSelection && rows.isNotEmpty && rows.every((r) => selectedPlayerIds.contains(r.playerId));
+    final someSelected =
+        hasSelection && !allSelected && rows.any((r) => selectedPlayerIds.contains(r.playerId));
     final tableColumns = <DataColumn>[
       if (hasSelection)
-        const DataColumn(label: SizedBox.shrink(), numeric: false),
+        DataColumn(
+          label: Checkbox(
+            value: allSelected ? true : (someSelected ? null : false),
+            tristate: true,
+            onChanged: (val) {
+              // null (indeterminate) or false → deselect all; true → select all
+              onSelectAll?.call(val == true);
+            },
+          ),
+          numeric: false,
+        ),
       ...columns.map((col) {
         return DataColumn(
           label: Text(
@@ -125,19 +141,10 @@ class StatsTable extends StatelessWidget {
                   displayValue = '$value';
                 }
 
-                if (col.key == 'player' && onRowTap != null) {
-                  return DataCell(
-                    Text(
-                      displayValue,
-                      style: TextStyle(
-                        color: colorScheme.primary,
-                        decoration: TextDecoration.underline,
-                      ),
-                    ),
-                    onTap: () => onRowTap!(row.playerId),
-                  );
-                }
-                return DataCell(Text(displayValue));
+                return DataCell(
+                  Text(displayValue),
+                  onTap: onRowTap != null ? () => onRowTap!(row.playerId) : null,
+                );
               }),
             ];
 

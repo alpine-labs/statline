@@ -159,6 +159,17 @@ class _SeasonStatsScreenState extends ConsumerState<SeasonStatsScreen> {
                       }
                     });
                   },
+                  onSelectAll: (selectAll) {
+                    setState(() {
+                      if (selectAll) {
+                        _selectedPlayerIds.addAll(
+                          rows.map((r) => r.playerId),
+                        );
+                      } else {
+                        _selectedPlayerIds.clear();
+                      }
+                    });
+                  },
                 );
               },
               loading: () =>
