@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../providers/stats_providers.dart';
 import '../../providers/team_providers.dart';
 import '../../widgets/export_button.dart';
+import '../../../domain/models/player.dart';
 import '../../../domain/models/player_stats.dart';
 import '../../../export/csv_exporter.dart';
 import '../../../export/share_service.dart';
+import '../../../export/stats_email_formatter.dart';
 import 'widgets/stats_table.dart';
 import 'player_detail_screen.dart';
 
@@ -37,6 +40,11 @@ class _SeasonStatsScreenState extends ConsumerState<SeasonStatsScreen> {
             : '${_selectedPlayerIds.length} Selected'),
         actions: [
           if (_selectedPlayerIds.isNotEmpty) ...[
+            IconButton(
+              icon: const Icon(Icons.email_outlined),
+              tooltip: 'Email stats to players',
+              onPressed: () => _showEmailSheet(context),
+            ),
             IconButton(
               icon: const Icon(Icons.ios_share),
               tooltip: 'Export selected',
@@ -298,6 +306,203 @@ class _SeasonStatsScreenState extends ConsumerState<SeasonStatsScreen> {
     });
 
     return rows;
+  }
+
+  void _showEmailSheet(BuildContext context) {
+    final players = ref.read(playersProvider).valueOrNull ?? [];
+    final stats = ref.read(seasonStatsProvider).valueOrNull ?? [];
+
+    final selectedPlayers = players
+        .where((p) => _selectedPlayerIds.contains(p.id))
+        .toList();
+
+    if (selectedPlayers.isEmpty) return;
+
+    final playersWithEmail =
+        selectedPlayers.where((p) => p.email != null && p.email!.isNotEmpty).toList();
+    final playersWithoutEmail =
+        selectedPlayers.where((p) => p.email == null || p.email!.isEmpty).toList();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.5,
+        minChildSize: 0.3,
+        maxChildSize: 0.85,
+        builder: (_, scrollController) => Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 32,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Theme.of(ctx).colorScheme.onSurface.withAlpha(60),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Text(
+                'Email Stats',
+                style: Theme.of(ctx).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${playersWithEmail.length} of ${selectedPlayers.length} players have an email on file',
+                style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(ctx).colorScheme.onSurface.withAlpha(153),
+                    ),
+              ),
+              const SizedBox(height: 8),
+              if (playersWithEmail.length > 1)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: FilledButton.icon(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _emailAllPlayers(context, playersWithEmail, stats);
+                    },
+                    icon: const Icon(Icons.send),
+                    label: Text('Email All (${playersWithEmail.length})'),
+                  ),
+                ),
+              const Divider(),
+              Expanded(
+                child: ListView(
+                  controller: scrollController,
+                  children: [
+                    for (final player in playersWithEmail)
+                      ListTile(
+                        leading: const Icon(Icons.email),
+                        title: Text(player.displayName),
+                        subtitle: Text(player.email!),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.send),
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            _emailPlayer(context, player, stats);
+                          },
+                        ),
+                      ),
+                    for (final player in playersWithoutEmail)
+                      ListTile(
+                        leading: Icon(
+                          Icons.email_outlined,
+                          color: Theme.of(ctx).colorScheme.onSurface.withAlpha(77),
+                        ),
+                        title: Text(player.displayName),
+                        subtitle: Text(
+                          'No email on file',
+                          style: TextStyle(
+                            color: Theme.of(ctx).colorScheme.onSurface.withAlpha(102),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _emailPlayer(
+    BuildContext context,
+    Player player,
+    List<PlayerSeasonStatsModel> allStats,
+  ) async {
+    final playerStats = allStats.where((s) => s.playerId == player.id).toList();
+    if (playerStats.isEmpty) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No stats found for ${player.displayName}')),
+        );
+      }
+      return;
+    }
+
+    final body = StatsEmailFormatter.formatPlayerStats(
+      playerStats.first,
+      player.firstName,
+      'volleyball',
+    );
+
+    final uri = Uri(
+      scheme: 'mailto',
+      path: player.email,
+      queryParameters: {
+        'subject': 'StatLine - ${player.displayName} Season Stats',
+        'body': body,
+      },
+    );
+
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    } else if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open email client')),
+      );
+    }
+  }
+
+  Future<void> _emailAllPlayers(
+    BuildContext context,
+    List<Player> players,
+    List<PlayerSeasonStatsModel> allStats,
+  ) async {
+    var sent = 0;
+    var skipped = 0;
+    for (final player in players) {
+      final playerStats =
+          allStats.where((s) => s.playerId == player.id).toList();
+      if (playerStats.isEmpty) {
+        skipped++;
+        continue;
+      }
+
+      final body = StatsEmailFormatter.formatPlayerStats(
+        playerStats.first,
+        player.firstName,
+        'volleyball',
+      );
+
+      final uri = Uri(
+        scheme: 'mailto',
+        path: player.email,
+        queryParameters: {
+          'subject': 'StatLine - ${player.displayName} Season Stats',
+          'body': body,
+        },
+      );
+
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+        sent++;
+        // Brief delay between launches so email client can handle them
+        if (sent < players.length) {
+          await Future.delayed(const Duration(milliseconds: 500));
+        }
+      } else {
+        skipped++;
+      }
+    }
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(skipped == 0
+              ? 'Opened $sent email(s)'
+              : 'Opened $sent email(s), $skipped skipped'),
+        ),
+      );
+    }
   }
 
   void _exportSeasonCsv(BuildContext context) async {
