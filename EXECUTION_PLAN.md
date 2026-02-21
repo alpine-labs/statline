@@ -106,6 +106,70 @@ The app has a solid Phase 1 foundation (teams, rosters, seasons, live game entry
 
 ---
 
+## Team Level Field — Expert Recommendations
+
+*Source: sports-stats-designer agent review, Feb 2026.*
+
+### Current State
+The `level` field (Club, High School, College, Recreation) is stored in the DB and shown as a subtitle label on the teams list. It has **zero behavioral impact** on the app today.
+
+### Option Set Fix (do now)
+Add **Youth** to the level enum — it's the most rules-sensitive level and covers the core target audience (youth baseball, youth basketball, club volleyball, flag football). The revised enum:
+
+| Value | Notes |
+|---|---|
+| `Youth` | ➕ Add — Under ~14; Little League, U12/U14 club, flag football |
+| `High School` | ✅ Keep |
+| `College` | ✅ Keep |
+| `Club` | ✅ Keep (rename to "Club / Travel" optional) |
+| `Recreation` | ✅ Keep |
+
+### Behavioral Impact by Sport
+
+Level should graduate from a cosmetic label to a **configuration preset engine**: it sets smart defaults per game/match, but every default is overridable.
+
+#### 🏐 Volleyball (live — act now)
+- Wire level → match format defaults when starting a game/match:
+  - Youth/Rec → best-of-3, sets to 21
+  - HS/College → best-of-5, sets to 25 (5th to 15)
+- Substitution limit default: NCAA = 15, NFHS = 12, Youth/Rec = custom
+
+#### ⚾ Baseball (Phase 2 — highest priority level-driven feature)
+- Pitch count tracking with rest-day warnings is a **player safety issue** at Youth and HS levels.
+- Youth (Little League): 85-pitch daily limit (13-16 yr), mandatory rest tiers
+- High School: varies by state (~105/wk), display running count with color warning (yellow at 75%, red at limit)
+- Mercy/run rule: Youth (10-run after 4 inn), HS (10-run after 5 inn) — app offers to end game
+- Inning count default: Youth = 6, HS/College = 9
+
+#### 🏀 Basketball (Phase 2)
+- Period structure default from level:
+  - Youth → 4 × 8-min quarters
+  - HS (NFHS) → 4 × 8-min quarters
+  - College Men → 2 × 20-min halves
+  - College Women → 4 × 10-min quarters
+- Period structure changes how stats are segmented — wire early
+
+#### 🏈 Football (Phase 2)
+- Quarter length default: Youth = 8–10 min, HS = 12 min, College = 15 min
+- Running clock (mercy rule): default ON for Youth, per-game toggle for others
+
+#### 🥎 Slowpitch Softball (Phase 2)
+- Skip level-driven rules — variance is per-league, not per-level
+- Add per-game league rule toggles instead: run limit per inning, HR cap before outs rule
+
+### Sprint Placement
+
+| Task ID | Sprint | Description |
+|---|---|---|
+| `level-youth-option` | Sprint 2 | Add `Youth` to the level dropdown in both Add Team and Edit Team forms (teams_screen.dart + edit_team_screen.dart). One-line change. |
+| `level-volleyball-defaults` | Sprint 2 | When starting a match, pre-populate format (best-of, set score) based on team level. Overridable per game. |
+| `level-baseball-pitchcount` | Phase 2 / Baseball sprint | Level-aware pitch count panel with color warnings and rest-day calculator for Youth and HS. |
+| `level-basketball-periods` | Phase 2 / Basketball sprint | Default period structure (halves vs quarters, duration) from team level. |
+| `level-football-clock` | Phase 2 / Football sprint | Default quarter duration and running-clock mercy rule from team level. |
+| `level-softball-toggles` | Phase 2 / Softball sprint | Per-game league rule toggles (run limit, HR cap) — not level-driven. |
+
+---
+
 ## Decisions (Resolved)
 - **Dashboard**: Start minimal — don't over-engineer. Start Game hero, last game card, season record w/ streaks, team leaders. Add trends card later once aggregation is solid.
 - **Quick+ Mode**: No. Quick (8 buttons) and Detailed (20 buttons) is sufficient.
