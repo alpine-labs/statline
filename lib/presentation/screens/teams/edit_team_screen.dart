@@ -88,6 +88,7 @@ class _EditTeamScreenState extends ConsumerState<EditTeamScreen> {
               value: _level,
               decoration: const InputDecoration(labelText: 'Level'),
               items: const [
+                DropdownMenuItem(value: 'Youth', child: Text('Youth')),
                 DropdownMenuItem(value: 'Club', child: Text('Club')),
                 DropdownMenuItem(
                     value: 'High School', child: Text('High School')),

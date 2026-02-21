@@ -54,6 +54,20 @@ class SportConfig {
     };
   }
 
+  /// Returns volleyball format defaults adjusted for the team [level].
+  /// Youth/Recreation → best-of-3, sets to 21.
+  /// High School/College/Club → best-of-5, sets to 25.
+  static Map<String, dynamic> volleyballFormatForLevel(String level) {
+    final isCasual = level == 'Youth' || level == 'Recreation';
+    return {
+      'setsToWin': isCasual ? 2 : 3,
+      'maxSets': isCasual ? 3 : 5,
+      'pointsPerSet': isCasual ? 21 : 25,
+      'decidingSetPoints': 15,
+      'minPointAdvantage': 2,
+    };
+  }
+
   // ── Volleyball ─────────────────────────────────────────────────────────
 
   static const Map<String, dynamic> _volleyballDefaults = {

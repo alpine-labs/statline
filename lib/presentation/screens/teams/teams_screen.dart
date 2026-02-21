@@ -357,6 +357,8 @@ class TeamsScreen extends ConsumerWidget {
                           const InputDecoration(labelText: 'Level'),
                       items: const [
                         DropdownMenuItem(
+                            value: 'Youth', child: Text('Youth')),
+                        DropdownMenuItem(
                             value: 'Club', child: Text('Club')),
                         DropdownMenuItem(
                             value: 'High School',

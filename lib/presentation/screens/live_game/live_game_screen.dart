@@ -10,6 +10,7 @@ import '../../../domain/models/game.dart';
 import '../../../domain/models/player.dart';
 import '../../../domain/models/play_event.dart';
 import '../../../domain/sports/volleyball/volleyball_stats.dart';
+import '../../../core/constants/sport_config.dart';
 import '../../../core/theme/app_theme.dart';
 import 'widgets/scoreboard_widget.dart';
 import 'widgets/player_grid.dart';
@@ -298,6 +299,18 @@ class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
     final opponentController = TextEditingController();
     bool isHome = true;
 
+    // Level-aware volleyball defaults
+    Map<String, dynamic> format;
+    if (team.sport == 'volleyball') {
+      format = SportConfig.volleyballFormatForLevel(team.level);
+    } else {
+      format = SportConfig.defaultFormat(
+        Sport.values.firstWhere((s) => s.name == team.sport,
+            orElse: () => Sport.volleyball),
+      );
+    }
+    String matchFormat = format['maxSets'] == 5 ? 'bestOf5' : 'bestOf3';
+
     showDialog(
       context: context,
       builder: (context) {
@@ -322,6 +335,44 @@ class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
                     onChanged: (v) => setDialogState(() => isHome = v),
                     contentPadding: EdgeInsets.zero,
                   ),
+                  if (team.sport == 'volleyball') ...[
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      value: matchFormat,
+                      decoration:
+                          const InputDecoration(labelText: 'Match Format'),
+                      items: const [
+                        DropdownMenuItem(
+                            value: 'bestOf3',
+                            child: Text('Best of 3 (sets to 21)')),
+                        DropdownMenuItem(
+                            value: 'bestOf5',
+                            child: Text('Best of 5 (sets to 25)')),
+                      ],
+                      onChanged: (v) {
+                        setDialogState(() {
+                          matchFormat = v!;
+                          if (matchFormat == 'bestOf3') {
+                            format = {
+                              'setsToWin': 2,
+                              'maxSets': 3,
+                              'pointsPerSet': 21,
+                              'decidingSetPoints': 15,
+                              'minPointAdvantage': 2,
+                            };
+                          } else {
+                            format = {
+                              'setsToWin': 3,
+                              'maxSets': 5,
+                              'pointsPerSet': 25,
+                              'decidingSetPoints': 15,
+                              'minPointAdvantage': 2,
+                            };
+                          }
+                        });
+                      },
+                    ),
+                  ],
                 ],
               ),
               actions: [
@@ -343,9 +394,9 @@ class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
                       isHome: isHome,
                       sport: team.sport,
                       gameFormat: {
-                        'setsToWin': 3,
-                        'maxSets': 5,
-                        'pointsPerSet': 25,
+                        'setsToWin': format['setsToWin'],
+                        'maxSets': format['maxSets'],
+                        'pointsPerSet': format['pointsPerSet'],
                       },
                       status: GameStatus.scheduled,
                       createdAt: now,
