@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/team_providers.dart';
 import '../../widgets/sport_icon.dart';
 import '../../../domain/models/team.dart';
+import 'edit_team_screen.dart';
 import 'roster_screen.dart';
 import 'season_screen.dart';
 
@@ -119,7 +120,12 @@ class TeamsScreen extends ConsumerWidget {
               title: const Text('Edit Team'),
               onTap: () {
                 Navigator.pop(context);
-                // TODO: Navigate to edit team
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => EditTeamScreen(team: team),
+                  ),
+                );
               },
             ),
             ListTile(
