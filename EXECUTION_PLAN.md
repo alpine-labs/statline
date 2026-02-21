@@ -170,6 +170,67 @@ Level should graduate from a cosmetic label to a **configuration preset engine**
 
 ---
 
+## Volleyball Expert Review — Sports Stats Designer
+
+*Source: sports-stats-designer agent review, Feb 2026.*
+
+### What's Working Well
+
+- **Stat coverage is solid.** Hitting %, pass rating (0-3), perfect pass %, serve efficiency, points formula — these are the right core metrics. Most competitors miss at least one of these.
+- **Quick Mode action selection is well-chosen.** The 8-action set (Kill, Error, Dig, Assist, Block, Ace, SrvErr, OppErr) covers ~85% of rally-ending actions. Good for single-scorekeeper coaches.
+- **Detailed Mode has real depth.** Pass 3/2/1/0 grading, block assists, zero attacks, set errors — this is what separates a serious tool from a toy.
+- **Libero tracking exists.** Manual In/Out is the right approach — don't automate this.
+- **Level-aware match format defaults are in place.** Youth/Rec → best-of-3/21, HS/College/Club → best-of-5/25 with override.
+- **Offline-first architecture.** Essential for gyms with poor connectivity.
+
+### Gaps & Recommended Changes
+
+#### PRIORITY 1 — High-impact coaching features (do next)
+
+| ID | Change | Why It Matters | Size |
+|----|--------|----------------|------|
+| `vb-side-out-display` | Display side-out % on scoreboard and in game stats | Side-out % is THE #1 team-level metric in competitive volleyball. Formula already exists in `volleyball_stats.dart` but is never shown. Coaches check this every set transition. | Small |
+| `vb-rotation-on-events` | Store `currentRotation` on every PlayEvent | Without rotation stored per-event, you can never compute stats-by-rotation, which is the single highest-value coaching analysis in volleyball ("we leak points in rotation 3"). Already tracking rotation in state — just write it to each event. | Small |
+| `vb-pass-0-split` | Split "Pass 0 (Overpass/Shank)" into two separate events: "Pass 0 (Shank)" and "Overpass" | An overpass results in a free ball or kill for the opponent — it's functionally a reception error. A shank (zero) stays on your side. Conflating them gives misleading pass ratings. | Small |
+| `vb-sub-limit-by-level` | Default substitution limit from team level: NCAA → 15, NFHS → 12, Youth/Rec → 18 (unlimited effectively) | The sub counter already exists but is hardcoded to 15. A HS coach will see "Subs: 12/15" and think they have 3 left when they don't. | Small |
+| `vb-first-ball-sideout` | Track first-ball side-out: side-out scored on the first attack after reception (pass → set → kill, no rally) | Distinguishes clean offensive execution from grinding out a rally. Coaches use this to evaluate serve-receive offense independent of defense. | Medium |
+
+#### PRIORITY 2 — Live game UX improvements
+
+| ID | Change | Why It Matters | Size |
+|----|--------|----------------|------|
+| `vb-auto-rotate` | Auto-advance rotation on side-out (when your team wins a rally on opponent's serve) | Manual-only rotation is error-prone under game pressure. Auto-rotate on side-out, manual override stays available. This is how every serious stat tool works. | Medium |
+| `vb-serve-tracking` | When recording an Ace or Serve Error, auto-identify the server based on rotation position (position 1 = server) | Eliminates one tap per serve event. If the app knows the lineup and current rotation, the server is always the player in position 1. Reduces entry time by ~15%. | Medium |
+| `vb-score-flow-priority` | Prioritize the score flow chart (already planned as `score-flow-chart` in Sprint 3) | This is the #1 competitive differentiator. No consumer app does it. Score flow with timeout annotations answers "when did we lose momentum?" which is the question coaches ask most. Move it up. | Large |
+| `vb-player-stat-peek` | Long-press player button during live game → popup with current game stats (already planned as `player-stat-peek` in Sprint 3) | During timeouts, coaches need instant access to "how's she hitting?" without leaving the live entry screen. This is the difference between a stat tool and a coaching tool. Move it up. | Medium |
+
+#### PRIORITY 3 — Stats display & analysis
+
+| ID | Change | Why It Matters | Size |
+|----|--------|----------------|------|
+| `vb-rotation-stats` | Stats-by-rotation analysis screen: show hitting %, side-out %, points scored/lost per rotation | Requires `vb-rotation-on-events` first. This is the most requested analysis feature from competitive coaches. "Show me which rotation is bleeding points." | Large |
+| `vb-per-set-stats` | Per-set stat breakdown for a single game (already planned as `per-set-breakdown` in Sprint 3) | Answers "why did we lose set 3?" — coaches ask this after every loss. | Medium |
+| `vb-assist-to-kill` | Display assist-to-kill ratio on setter's player detail (assists / team_kills) | Measures setter quality relative to team offense. | Small |
+| `vb-reception-filter` | Add "Passing" filter chip to season stats table (columns: GP, Receptions, Pass Rating, PP%, Reception Errors) | Passing stats exist in the data but are buried — no dedicated view. Serve-receive is 50% of the game and deserves its own filter. | Small |
+
+### Things to NOT Do
+
+- **Don't add a 0-4 pass rating scale option.** The 0-3 scale is standard and simpler. The 0-4 scale is used by a minority of college programs and adds confusion for your target audience (youth/HS/club).
+- **Don't auto-track digs.** Some apps try to infer digs from rally context — this is unreliable and frustrating. Manual entry is correct.
+- **Don't build rotation-based lineup management** (drag-and-drop court view with 6 slots). It's a massive time sink, coaches don't use it live, and it adds complexity that slows down entry. The simple R1-R6 indicator + auto-rotate is the right approach.
+- **Don't add touch zones / heat maps for attacks.** This requires a second input (where on the court) for every attack, which doubles entry time and isn't feasible for a single scorekeeper. It's a college analytics team feature, not a coaching tool feature.
+- **Don't implement real-time cloud sync during games.** Offline-first is correct. Sync after game end is fine. Mid-game sync adds latency and failure modes that will cause stat loss.
+
+### Sprint Placement
+
+| Sprint | Tasks |
+|--------|-------|
+| **Immediate (next sprint)** | `vb-side-out-display`, `vb-rotation-on-events`, `vb-pass-0-split`, `vb-sub-limit-by-level`, `vb-reception-filter` |
+| **Sprint 3 (move up)** | `vb-auto-rotate`, `vb-serve-tracking`, `vb-player-stat-peek`, `vb-first-ball-sideout`, `vb-score-flow-priority` |
+| **Sprint 4** | `vb-rotation-stats`, `vb-per-set-stats`, `vb-assist-to-kill` |
+
+---
+
 ## Decisions (Resolved)
 - **Dashboard**: Start minimal — don't over-engineer. Start Game hero, last game card, season record w/ streaks, team leaders. Add trends card later once aggregation is solid.
 - **Quick+ Mode**: No. Quick (8 buttons) and Detailed (20 buttons) is sufficient.
