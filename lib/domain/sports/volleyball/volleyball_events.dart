@@ -130,7 +130,14 @@ class VolleyballEvents {
 
   static const passQuality0 = EventType(
     id: 'pass_0',
-    label: 'Pass - 0 (Overpass/Shank)',
+    label: 'Pass - 0 (Shank)',
+    category: 'pass',
+    defaultResult: 'rally_continues',
+  );
+
+  static const overpass = EventType(
+    id: 'overpass',
+    label: 'Overpass',
     category: 'pass',
     defaultResult: 'rally_continues',
   );
@@ -211,7 +218,7 @@ class VolleyballEvents {
   static const passCategory = EventCategory(
     id: 'pass',
     label: 'Pass',
-    eventTypes: [passQuality3, passQuality2, passQuality1, passQuality0, passError],
+    eventTypes: [passQuality3, passQuality2, passQuality1, passQuality0, overpass, passError],
   );
 
   static const setCategory = EventCategory(

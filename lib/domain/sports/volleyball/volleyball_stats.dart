@@ -79,6 +79,7 @@ class VolleyballStats {
     int setErrors = 0;
     int passAttempts = 0;
     int pass3Count = 0;
+    int overpasses = 0;
     final List<double> passRatings = [];
 
     for (final event in filtered) {
@@ -151,6 +152,11 @@ class VolleyballStats {
           passRatings.add(0.0);
           passAttempts++;
           break;
+        case 'overpass':
+          overpasses++;
+          passRatings.add(0.0);
+          passAttempts++;
+          break;
         case 'pass_error':
           passRatings.add(0.0);
           passAttempts++;
@@ -208,6 +214,7 @@ class VolleyballStats {
       'oppErrors': oppErrors,
       'oppAttempts': oppAttempts,
       'oppHittingPct': oppHittingPct,
+      'overpasses': overpasses,
     };
   }
 }

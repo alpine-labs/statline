@@ -54,6 +54,17 @@ class SportConfig {
     };
   }
 
+  /// Returns the max substitutions per set for the given volleyball [level].
+  /// NCAA/College = 15, NFHS/HS = 12, Youth/Rec = 18.
+  static int volleyballSubLimitForLevel(String level) {
+    return switch (level) {
+      'College' || 'Club' => 15,
+      'High School' => 12,
+      'Youth' || 'Recreation' => 18,
+      _ => 15,
+    };
+  }
+
   /// Returns volleyball format defaults adjusted for the team [level].
   /// Youth/Recreation → best-of-3, sets to 21.
   /// High School/College/Club → best-of-5, sets to 25.

@@ -109,7 +109,7 @@ class LiveGameState {
 class LiveGameNotifier extends StateNotifier<LiveGameState> {
   LiveGameNotifier() : super(LiveGameState.initial());
 
-  void startGame(Game game, List<Player> roster) {
+  void startGame(Game game, List<Player> roster, {int? maxSubsPerSet}) {
     final firstPeriod = GamePeriod(
       id: 'period_1',
       gameId: game.id,
@@ -131,6 +131,7 @@ class LiveGameNotifier extends StateNotifier<LiveGameState> {
       timeoutsUs: 0,
       timeoutsThem: 0,
       subsThisSet: 0,
+      maxSubsPerSet: maxSubsPerSet,
     );
   }
 
@@ -139,19 +140,26 @@ class LiveGameNotifier extends StateNotifier<LiveGameState> {
   }
 
   void recordEvent(PlayEvent event) {
+    // Enrich event with current rotation metadata
+    final enrichedEvent = state.currentRotation != null
+        ? event.copyWith(
+            metadata: {...event.metadata, 'rotation': state.currentRotation},
+          )
+        : event;
+
     state = state.copyWith(
-      playEvents: [...state.playEvents, event],
-      undoStack: [...state.undoStack, event],
-      scoreUs: event.scoreUsAfter,
-      scoreThem: event.scoreThemAfter,
+      playEvents: [...state.playEvents, enrichedEvent],
+      undoStack: [...state.undoStack, enrichedEvent],
+      scoreUs: enrichedEvent.scoreUsAfter,
+      scoreThem: enrichedEvent.scoreThemAfter,
       selectedPlayerId: () => null,
     );
 
     // Update current period score
     if (state.currentPeriod != null) {
       final updatedPeriod = state.currentPeriod!.copyWith(
-        scoreUs: event.scoreUsAfter,
-        scoreThem: event.scoreThemAfter,
+        scoreUs: enrichedEvent.scoreUsAfter,
+        scoreThem: enrichedEvent.scoreThemAfter,
       );
       final updatedPeriods = state.periods
           .map((p) => p.id == updatedPeriod.id ? updatedPeriod : p)

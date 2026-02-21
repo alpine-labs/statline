@@ -411,7 +411,14 @@ class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
 
                     ref
                         .read(liveGameStateProvider.notifier)
-                        .startGame(game, players);
+                        .startGame(
+                          game,
+                          players,
+                          maxSubsPerSet: team.sport == 'volleyball'
+                              ? SportConfig.volleyballSubLimitForLevel(
+                                  team.level ?? 'Club')
+                              : null,
+                        );
                   },
                   child: const Text('Start'),
                 ),
@@ -483,7 +490,7 @@ class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
       'serve_in_play': 'SI', 'block_solo': 'B', 'block_assist': 'BA',
       'block_error': 'BE', 'dig': 'D', 'dig_error': 'DE',
       'pass_3': 'P3', 'pass_2': 'P2', 'pass_1': 'P1', 'pass_0': 'P0',
-      'pass_error': 'RE', 'set_assist': 'AS', 'set_error': 'STE',
+      'overpass': 'OP', 'pass_error': 'RE', 'set_assist': 'AS', 'set_error': 'STE',
       'opp_error': 'OE',
     };
     return map[type] ?? result.substring(0, 1).toUpperCase();
