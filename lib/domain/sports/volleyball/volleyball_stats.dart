@@ -14,6 +14,13 @@ class VolleyballStats {
   static const double serviceErrorsHighPerGame = 5.0;
   static const double serviceErrorsModeratePerGame = 3.0;
 
+  // ── Needs Attention thresholds ──────────────────────────────────────────
+  static const double criticalHittingPct = 0.100;
+  static const int criticalHittingMinAttempts = 20;
+  static const double serviceErrorRateHigh = 0.15;
+  static const int losingStreakThreshold = 3;
+  static const int zeroKillsMinGames = 3;
+
   /// Aggregate team hitting percentage from all players' season totals.
   static double computeTeamHittingPercentage(
       List<PlayerSeasonStatsModel> stats) {

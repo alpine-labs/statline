@@ -15,6 +15,8 @@ void main() {
     int errors = 0,
     int totalAttempts = 0,
     int aces = 0,
+    int serviceErrors = 2,
+    int serveAttempts = 0,
     int digs = 0,
     int blockSolos = 0,
     int blockAssists = 0,
@@ -33,7 +35,8 @@ void main() {
         'errors': errors,
         'totalAttempts': totalAttempts,
         'serviceAces': aces,
-        'serviceErrors': 2,
+        'serviceErrors': serviceErrors,
+        'serveAttempts': serveAttempts,
         'digs': digs,
         'blockSolos': blockSolos,
         'blockAssists': blockAssists,
@@ -343,6 +346,251 @@ void main() {
 
       final result = computePlayerContributions(stats, (id) => 'TestName');
       expect(result[0].playerName, 'TestName');
+    });
+  });
+
+  // ── Service Efficiency ──────────────────────────────────────────────────
+
+  group('computeServiceEfficiency', () {
+    test('computes from per-game stats', () {
+      final games = [
+        makeGame(id: 'g1', opponent: 'A', result: GameResult.win, daysAgo: 3),
+        makeGame(id: 'g2', opponent: 'B', result: GameResult.loss, daysAgo: 2),
+      ];
+      final gameStats = [
+        PlayerGameStatsModel(
+          id: 'gs1', gameId: 'g1', playerId: 'p1', sport: 'volleyball',
+          stats: {'serviceAces': 4, 'serviceErrors': 2},
+          computedAt: now,
+        ),
+        PlayerGameStatsModel(
+          id: 'gs2', gameId: 'g2', playerId: 'p1', sport: 'volleyball',
+          stats: {'serviceAces': 1, 'serviceErrors': 3},
+          computedAt: now,
+        ),
+      ];
+
+      final result = computeServiceEfficiency(games, [], gameStats);
+      expect(result.length, 2);
+      expect(result[0].aces, 4);
+      expect(result[0].errors, 2);
+      expect(result[0].isWin, true);
+      expect(result[1].aces, 1);
+      expect(result[1].errors, 3);
+      expect(result[1].isWin, false);
+    });
+
+    test('approximates from season stats when no game stats', () {
+      final games = [
+        makeGame(id: 'g1', opponent: 'A', result: GameResult.win, daysAgo: 1),
+      ];
+      final seasonStats = [
+        makeStat(playerId: 'p1', aces: 10, serviceErrors: 5, gamesPlayed: 5),
+      ];
+
+      final result = computeServiceEfficiency(games, seasonStats, []);
+      expect(result.length, 1);
+      // Should have derived approximation
+      expect(result[0].gameLabel, contains('A'));
+    });
+
+    test('returns empty for no games', () {
+      expect(computeServiceEfficiency([], [], []), isEmpty);
+    });
+
+    test('handles single game', () {
+      final games = [
+        makeGame(id: 'g1', opponent: 'X', result: GameResult.win, daysAgo: 1),
+      ];
+      final gameStats = [
+        PlayerGameStatsModel(
+          id: 'gs1', gameId: 'g1', playerId: 'p1', sport: 'volleyball',
+          stats: {'serviceAces': 5, 'serviceErrors': 1},
+          computedAt: now,
+        ),
+      ];
+
+      final result = computeServiceEfficiency(games, [], gameStats);
+      expect(result.length, 1);
+      expect(result[0].aces, 5);
+      expect(result[0].errors, 1);
+    });
+  });
+
+  // ── Home vs Away ────────────────────────────────────────────────────────
+
+  group('computeHomeAwayComparison', () {
+    test('all home games', () {
+      final games = [
+        makeGame(id: 'g1', opponent: 'A', result: GameResult.win, isHome: true),
+        makeGame(id: 'g2', opponent: 'B', result: GameResult.win, isHome: true),
+      ];
+      final stats = [
+        makeStat(playerId: 'p1', kills: 20, errors: 5, totalAttempts: 50, aces: 8, digs: 30),
+      ];
+
+      final result = computeHomeAwayComparison(games, stats);
+      expect(result.homeGames, 2);
+      expect(result.awayGames, 0);
+      expect(result.homeWinPct, 100.0);
+      expect(result.awayWinPct, 0.0);
+    });
+
+    test('all away games', () {
+      final games = [
+        makeGame(id: 'g1', opponent: 'A', result: GameResult.loss, isHome: false),
+        makeGame(id: 'g2', opponent: 'B', result: GameResult.win, isHome: false),
+      ];
+      final stats = [
+        makeStat(playerId: 'p1', kills: 20, errors: 5, totalAttempts: 50, aces: 8, digs: 30),
+      ];
+
+      final result = computeHomeAwayComparison(games, stats);
+      expect(result.homeGames, 0);
+      expect(result.awayGames, 2);
+      expect(result.awayWinPct, 50.0);
+    });
+
+    test('mixed home and away', () {
+      final games = [
+        makeGame(id: 'g1', opponent: 'A', result: GameResult.win, isHome: true),
+        makeGame(id: 'g2', opponent: 'B', result: GameResult.loss, isHome: false),
+        makeGame(id: 'g3', opponent: 'C', result: GameResult.win, isHome: true),
+        makeGame(id: 'g4', opponent: 'D', result: GameResult.win, isHome: false),
+      ];
+      final stats = [
+        makeStat(playerId: 'p1', kills: 40, errors: 10, totalAttempts: 100, aces: 12, digs: 50),
+      ];
+
+      final result = computeHomeAwayComparison(games, stats);
+      expect(result.homeGames, 2);
+      expect(result.awayGames, 2);
+      expect(result.homeWinPct, 100.0);
+      expect(result.awayWinPct, 50.0);
+      expect(result.homeHittingPct, greaterThan(result.awayHittingPct));
+      expect(result.homeAcesPerGame, greaterThan(result.awayAcesPerGame));
+    });
+
+    test('empty games returns zeros', () {
+      final result = computeHomeAwayComparison([], []);
+      expect(result.homeGames, 0);
+      expect(result.awayGames, 0);
+      expect(result.homeWinPct, 0.0);
+      expect(result.awayWinPct, 0.0);
+    });
+  });
+
+  // ── Needs Attention ─────────────────────────────────────────────────────
+
+  group('computeNeedsAttention', () {
+    test('detects critically low hitting %', () {
+      final games = [
+        makeGame(id: 'g1', opponent: 'A', result: GameResult.win, daysAgo: 1),
+      ];
+      final stats = [
+        makeStat(
+          playerId: 'p1',
+          kills: 2,
+          errors: 8,
+          totalAttempts: 25,
+          gamesPlayed: 5,
+          hittingPct: -0.240,
+        ),
+      ];
+
+      final result = computeNeedsAttention(games, stats, (id) => 'TestPlayer');
+      expect(result.any((a) => a.message.contains('hitting%')), true);
+      expect(result.any((a) => a.message.contains('TestPlayer')), true);
+    });
+
+    test('detects high service error rate', () {
+      final games = [
+        makeGame(id: 'g1', opponent: 'A', result: GameResult.win, daysAgo: 1),
+      ];
+      final stats = [
+        makeStat(
+          playerId: 'p1',
+          aces: 5,
+          serviceErrors: 15,
+          serveAttempts: 80,
+          gamesPlayed: 5,
+        ),
+      ];
+
+      final result = computeNeedsAttention(games, stats, (id) => 'Player');
+      expect(result.any((a) => a.message.contains('Service errors')), true);
+    });
+
+    test('detects losing streak', () {
+      final games = [
+        makeGame(id: 'g1', opponent: 'A', result: GameResult.loss, daysAgo: 1),
+        makeGame(id: 'g2', opponent: 'B', result: GameResult.loss, daysAgo: 2),
+        makeGame(id: 'g3', opponent: 'C', result: GameResult.loss, daysAgo: 3),
+      ];
+
+      final result = computeNeedsAttention(games, [], (id) => 'Player');
+      expect(result.any((a) => a.message.contains('losing streak')), true);
+    });
+
+    test('detects zero kills player', () {
+      final games = [
+        makeGame(id: 'g1', opponent: 'A', result: GameResult.win, daysAgo: 1),
+      ];
+      final stats = [
+        makeStat(
+          playerId: 'p1',
+          kills: 0,
+          totalAttempts: 0,
+          gamesPlayed: 5,
+        ),
+      ];
+
+      final result = computeNeedsAttention(games, stats, (id) => 'Libero');
+      expect(result.any((a) => a.message.contains("hasn't recorded a kill")), true);
+      expect(result.any((a) => a.message.contains('Libero')), true);
+    });
+
+    test('returns empty when no issues', () {
+      final games = [
+        makeGame(id: 'g1', opponent: 'A', result: GameResult.win, daysAgo: 1),
+      ];
+      final stats = [
+        makeStat(
+          playerId: 'p1',
+          kills: 20,
+          errors: 5,
+          totalAttempts: 50,
+          aces: 5,
+          serviceErrors: 2,
+          serveAttempts: 40,
+          gamesPlayed: 5,
+          hittingPct: 0.300,
+        ),
+      ];
+
+      final result = computeNeedsAttention(games, stats, (id) => 'Player');
+      expect(result, isEmpty);
+    });
+
+    test('limits to max 3 alerts', () {
+      final games = [
+        makeGame(id: 'g1', opponent: 'A', result: GameResult.loss, daysAgo: 1),
+        makeGame(id: 'g2', opponent: 'B', result: GameResult.loss, daysAgo: 2),
+        makeGame(id: 'g3', opponent: 'C', result: GameResult.loss, daysAgo: 3),
+      ];
+      final stats = [
+        makeStat(playerId: 'p1', kills: 2, errors: 8, totalAttempts: 25, aces: 2, serviceErrors: 15, serveAttempts: 80, gamesPlayed: 5),
+        makeStat(playerId: 'p2', kills: 1, errors: 7, totalAttempts: 20, aces: 1, serviceErrors: 10, serveAttempts: 50, gamesPlayed: 5),
+        makeStat(playerId: 'p3', kills: 0, totalAttempts: 0, gamesPlayed: 5),
+      ];
+
+      final result = computeNeedsAttention(games, stats, (id) => 'Player_$id');
+      expect(result.length, lessThanOrEqualTo(3));
+    });
+
+    test('handles empty games', () {
+      final result = computeNeedsAttention([], [], (id) => 'Player');
+      expect(result, isEmpty);
     });
   });
 }

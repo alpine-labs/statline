@@ -4,6 +4,8 @@ import 'package:statline/presentation/providers/dashboard_insights_provider.dart
 import 'package:statline/presentation/screens/dashboard/widgets/efficiency_trend_chart.dart';
 import 'package:statline/presentation/screens/dashboard/widgets/points_source_chart.dart';
 import 'package:statline/presentation/screens/dashboard/widgets/player_contribution_chart.dart';
+import 'package:statline/presentation/screens/dashboard/widgets/service_scatter_chart.dart';
+import 'package:statline/presentation/screens/dashboard/widgets/home_away_chart.dart';
 
 void main() {
   // ── Efficiency Trend Chart ──────────────────────────────────────────────
@@ -194,6 +196,104 @@ void main() {
 
       // Name should be truncated to 10 chars + ellipsis
       expect(find.text('Very Long …'), findsOneWidget);
+    });
+  });
+
+  // ── Service Scatter Chart ──────────────────────────────────────────────
+
+  group('ServiceScatterChart', () {
+    testWidgets('renders with valid data', (tester) async {
+      final data = [
+        const ServiceEfficiencyPoint(gameLabel: 'vs A', aces: 5, errors: 2, isWin: true),
+        const ServiceEfficiencyPoint(gameLabel: '@ B', aces: 2, errors: 4, isWin: false),
+        const ServiceEfficiencyPoint(gameLabel: 'vs C', aces: 3, errors: 3, isWin: true),
+      ];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: ServiceScatterChart(data: data),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Service Efficiency'), findsOneWidget);
+      expect(find.text('Win'), findsOneWidget);
+      expect(find.text('Loss'), findsOneWidget);
+      expect(find.text('Need game data to show service efficiency'), findsNothing);
+    });
+
+    testWidgets('renders empty state with no data', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: ServiceScatterChart(data: []),
+          ),
+        ),
+      );
+
+      expect(find.text('Need game data to show service efficiency'), findsOneWidget);
+    });
+  });
+
+  // ── Home Away Chart ────────────────────────────────────────────────────
+
+  group('HomeAwayChart', () {
+    testWidgets('renders with valid data', (tester) async {
+      const data = HomeAwayComparison(
+        homeWinPct: 75.0,
+        awayWinPct: 50.0,
+        homeHittingPct: 0.280,
+        awayHittingPct: 0.220,
+        homeAcesPerGame: 7.5,
+        awayAcesPerGame: 5.0,
+        homeDigsPerGame: 32.0,
+        awayDigsPerGame: 28.0,
+        homeGames: 3,
+        awayGames: 2,
+      );
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: HomeAwayChart(data: data),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Home vs Away'), findsOneWidget);
+      expect(find.textContaining('Home'), findsWidgets);
+      expect(find.textContaining('Away'), findsWidgets);
+      expect(find.text('All games have been at home so far'), findsNothing);
+    });
+
+    testWidgets('shows all-home message when no away games', (tester) async {
+      const data = HomeAwayComparison(
+        homeWinPct: 100.0,
+        awayWinPct: 0.0,
+        homeHittingPct: 0.300,
+        awayHittingPct: 0.0,
+        homeAcesPerGame: 8.0,
+        awayAcesPerGame: 0.0,
+        homeDigsPerGame: 30.0,
+        awayDigsPerGame: 0.0,
+        homeGames: 5,
+        awayGames: 0,
+      );
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: HomeAwayChart(data: data),
+          ),
+        ),
+      );
+
+      expect(find.text('All games have been at home so far'), findsOneWidget);
     });
   });
 }

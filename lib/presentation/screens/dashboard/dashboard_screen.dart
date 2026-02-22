@@ -15,6 +15,8 @@ import '../game_detail/game_detail_screen.dart';
 import 'widgets/efficiency_trend_chart.dart';
 import 'widgets/points_source_chart.dart';
 import 'widgets/player_contribution_chart.dart';
+import 'widgets/service_scatter_chart.dart';
+import 'widgets/home_away_chart.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -87,6 +89,9 @@ class DashboardScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
 
+          // 2a. Needs Attention alert card
+          const _NeedsAttentionCard(),
+
           // 2b. Insights panel (tabbed charts)
           gamesAsync.when(
             data: (games) => statsAsync.when(
@@ -157,7 +162,7 @@ class DashboardScreen extends ConsumerWidget {
                   ),
                 );
               }
-              return _buildLeaderboard(context, stats, ref);
+              return _TeamLeadersCard(stats: stats);
             },
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (e, _) => Text('Error: $e'),
@@ -472,123 +477,6 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  /// Returns a trend arrow widget: ▲ green if above average, ▼ red if below.
-  Widget _buildTrendArrow(num value, num average) {
-    if (average == 0) return const SizedBox.shrink();
-    if (value > average) {
-      return const Text(' ▲',
-          style: TextStyle(color: Color(0xFF4CAF50), fontSize: 12));
-    } else if (value < average) {
-      return const Text(' ▼',
-          style: TextStyle(color: Color(0xFFF44336), fontSize: 12));
-    }
-    return const Text(' —',
-        style: TextStyle(color: Color(0xFF9E9E9E), fontSize: 12));
-  }
-
-  Widget _buildLeaderboard(
-      BuildContext context, List<dynamic> stats, WidgetRef ref) {
-    // Top kills
-    final sortedByKills = List.from(stats)
-      ..sort((a, b) => ((b.statsTotals['kills'] ?? 0) as num)
-          .compareTo((a.statsTotals['kills'] ?? 0) as num));
-    final topKillers = sortedByKills.take(3).toList();
-
-    // Top hitting %
-    final sortedByHitPct = List.from(stats)
-      ..sort((a, b) => ((b.computedMetrics['hittingPercentage'] ?? 0) as num)
-          .compareTo(
-              (a.computedMetrics['hittingPercentage'] ?? 0) as num));
-    final topHitters = sortedByHitPct.take(3).toList();
-
-    final playersAsync = ref.watch(playersProvider);
-    final players = playersAsync.valueOrNull ?? [];
-
-    String getPlayerName(String playerId) {
-      final p = players.where((p) => p.id == playerId);
-      return p.isNotEmpty ? p.first.shortName : playerId;
-    }
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Top Kills',
-                style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            ...topKillers.map((s) {
-              final kills = (s.statsTotals['kills'] ?? 0) as num;
-              final avgKills = (s.statsAverages['kills'] ?? 0) as num;
-              final gamesPlayed = s.gamesPlayed as int;
-              // Compare per-game rate vs average
-              final lastGameRate =
-                  gamesPlayed > 0 ? kills / gamesPlayed : 0;
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        getPlayerName(s.playerId),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text('${s.statsTotals['kills'] ?? 0}',
-                            style:
-                                const TextStyle(fontWeight: FontWeight.bold)),
-                        _buildTrendArrow(lastGameRate, avgKills),
-                      ],
-                    ),
-                  ],
-                ),
-              );
-            }),
-            const Divider(height: 24),
-            Text('Top Hitting %',
-                style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            ...topHitters.map((s) {
-              final hitPct =
-                  (s.computedMetrics['hittingPercentage'] ?? 0) as num;
-              // Compare against league-average baseline of .250
-              const avgBaseline = 0.250;
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        getPlayerName(s.playerId),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          '.${(hitPct * 1000).round().toString().padLeft(3, '0')}',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        _buildTrendArrow(hitPct, avgBaseline),
-                      ],
-                    ),
-                  ],
-                ),
-              );
-            }),
-          ],
-        ),
-      ),
-    );
-  }
-
   String _formatDate(DateTime date) {
     final months = [
       'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -671,6 +559,8 @@ class _InsightsPanelState extends ConsumerState<_InsightsPanel>
     final efficiencyTrend = ref.watch(efficiencyTrendProvider);
     final pointsSource = ref.watch(pointsSourceProvider);
     final playerContribution = ref.watch(playerContributionProvider);
+    final serviceEfficiency = ref.watch(serviceEfficiencyProvider);
+    final homeAway = ref.watch(homeAwayProvider);
 
     return Card(
       child: Padding(
@@ -701,21 +591,27 @@ class _InsightsPanelState extends ConsumerState<_InsightsPanel>
               tabs: const [
                 Tab(text: 'Trends'),
                 Tab(text: 'Balance'),
-                Tab(text: 'Form'),
+                Tab(text: 'Context'),
               ],
             ),
             // Tab content
             SizedBox(
-              height: 350,
+              height: 520,
               child: TabBarView(
                 controller: _tabController,
                 children: [
-                  // Trends tab
+                  // Trends tab: Efficiency Trend + Service Scatter
                   SingleChildScrollView(
                     padding: const EdgeInsets.only(top: 12),
-                    child: EfficiencyTrendChart(data: efficiencyTrend),
+                    child: Column(
+                      children: [
+                        EfficiencyTrendChart(data: efficiencyTrend),
+                        const SizedBox(height: 24),
+                        ServiceScatterChart(data: serviceEfficiency),
+                      ],
+                    ),
                   ),
-                  // Balance tab
+                  // Balance tab: Points Source + Player Contribution
                   SingleChildScrollView(
                     padding: const EdgeInsets.only(top: 12),
                     child: Column(
@@ -726,46 +622,233 @@ class _InsightsPanelState extends ConsumerState<_InsightsPanel>
                       ],
                     ),
                   ),
-                  // Form tab (placeholder for Phase 3 heatmap)
-                  Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.grid_on,
-                            size: 40,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurface
-                                .withAlpha(80),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            'Recent Form Heatmap',
-                            style: Theme.of(context).textTheme.titleSmall,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Coming in a future update',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.copyWith(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurface
-                                      .withAlpha(128),
-                                ),
-                          ),
-                        ],
-                      ),
+                  // Context tab: Home vs Away + text insights
+                  SingleChildScrollView(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Column(
+                      children: [
+                        HomeAwayChart(data: homeAway),
+                        const SizedBox(height: 16),
+                        ...alerts.map((a) => Padding(
+                              padding: const EdgeInsets.only(bottom: 4),
+                              child: Text(a,
+                                  style: Theme.of(context).textTheme.bodySmall),
+                            )),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Needs Attention Card ─────────────────────────────────────────────────────
+
+class _NeedsAttentionCard extends ConsumerWidget {
+  const _NeedsAttentionCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final alerts = ref.watch(needsAttentionProvider);
+    if (alerts.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Card(
+        color: const Color(0xFFFFF3E0),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Needs Attention',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFFE65100),
+                    ),
+              ),
+              const SizedBox(height: 8),
+              ...alerts.map((alert) => Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      '${alert.icon} ${alert.message}',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: const Color(0xFF4E342E),
+                          ),
+                    ),
+                  )),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Team Leaders Card (FilterChip categories) ────────────────────────────────
+
+enum _LeaderCategory { kills, hittingPct, aces, digs }
+
+class _TeamLeadersCard extends ConsumerStatefulWidget {
+  final List<dynamic> stats;
+
+  const _TeamLeadersCard({required this.stats});
+
+  @override
+  ConsumerState<_TeamLeadersCard> createState() => _TeamLeadersCardState();
+}
+
+class _TeamLeadersCardState extends ConsumerState<_TeamLeadersCard> {
+  _LeaderCategory _selected = _LeaderCategory.kills;
+
+  Widget _buildTrendArrow(num value, num average) {
+    if (average == 0) return const SizedBox.shrink();
+    if (value > average) {
+      return const Text(' ▲',
+          style: TextStyle(color: Color(0xFF4CAF50), fontSize: 12));
+    } else if (value < average) {
+      return const Text(' ▼',
+          style: TextStyle(color: Color(0xFFF44336), fontSize: 12));
+    }
+    return const Text(' —',
+        style: TextStyle(color: Color(0xFF9E9E9E), fontSize: 12));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final playersAsync = ref.watch(playersProvider);
+    final players = playersAsync.valueOrNull ?? [];
+
+    String getPlayerName(String playerId) {
+      final p = players.where((p) => p.id == playerId);
+      return p.isNotEmpty ? p.first.shortName : playerId;
+    }
+
+    final categoryLabels = {
+      _LeaderCategory.kills: 'Kills',
+      _LeaderCategory.hittingPct: 'Hitting%',
+      _LeaderCategory.aces: 'Aces',
+      _LeaderCategory.digs: 'Digs',
+    };
+
+    List<dynamic> getSorted() {
+      final sorted = List.from(widget.stats);
+      switch (_selected) {
+        case _LeaderCategory.kills:
+          sorted.sort((a, b) => ((b.statsTotals['kills'] ?? 0) as num)
+              .compareTo((a.statsTotals['kills'] ?? 0) as num));
+        case _LeaderCategory.hittingPct:
+          sorted.sort((a, b) =>
+              ((b.computedMetrics['hittingPercentage'] ?? 0) as num)
+                  .compareTo(
+                      (a.computedMetrics['hittingPercentage'] ?? 0) as num));
+        case _LeaderCategory.aces:
+          sorted.sort((a, b) =>
+              ((b.statsTotals['serviceAces'] ?? 0) as num)
+                  .compareTo((a.statsTotals['serviceAces'] ?? 0) as num));
+        case _LeaderCategory.digs:
+          sorted.sort((a, b) => ((b.statsTotals['digs'] ?? 0) as num)
+              .compareTo((a.statsTotals['digs'] ?? 0) as num));
+      }
+      return sorted.take(3).toList();
+    }
+
+    String formatValue(dynamic s) {
+      switch (_selected) {
+        case _LeaderCategory.kills:
+          return '${s.statsTotals['kills'] ?? 0}';
+        case _LeaderCategory.hittingPct:
+          final hitPct =
+              (s.computedMetrics['hittingPercentage'] ?? 0) as num;
+          return '.${(hitPct * 1000).round().toString().padLeft(3, '0')}';
+        case _LeaderCategory.aces:
+          return '${s.statsTotals['serviceAces'] ?? 0}';
+        case _LeaderCategory.digs:
+          return '${s.statsTotals['digs'] ?? 0}';
+      }
+    }
+
+    Widget trendArrow(dynamic s) {
+      switch (_selected) {
+        case _LeaderCategory.kills:
+          final kills = (s.statsTotals['kills'] ?? 0) as num;
+          final avgKills = (s.statsAverages['kills'] ?? 0) as num;
+          final gp = s.gamesPlayed as int;
+          final rate = gp > 0 ? kills / gp : 0;
+          return _buildTrendArrow(rate, avgKills);
+        case _LeaderCategory.hittingPct:
+          final hitPct =
+              (s.computedMetrics['hittingPercentage'] ?? 0) as num;
+          return _buildTrendArrow(hitPct, 0.250);
+        case _LeaderCategory.aces:
+          final aces = (s.statsTotals['serviceAces'] ?? 0) as num;
+          final avgAces = (s.statsAverages['serviceAces'] ?? 0) as num;
+          final gp = s.gamesPlayed as int;
+          final rate = gp > 0 ? aces / gp : 0;
+          return _buildTrendArrow(rate, avgAces);
+        case _LeaderCategory.digs:
+          final digs = (s.statsTotals['digs'] ?? 0) as num;
+          final avgDigs = (s.statsAverages['digs'] ?? 0) as num;
+          final gp = s.gamesPlayed as int;
+          final rate = gp > 0 ? digs / gp : 0;
+          return _buildTrendArrow(rate, avgDigs);
+      }
+    }
+
+    final top = getSorted();
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // FilterChips for categories
+            Wrap(
+              spacing: 8,
+              children: _LeaderCategory.values.map((cat) {
+                return FilterChip(
+                  label: Text(categoryLabels[cat]!),
+                  selected: _selected == cat,
+                  onSelected: (selected) {
+                    if (selected) setState(() => _selected = cat);
+                  },
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 12),
+            ...top.map((s) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        getPlayerName(s.playerId),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          formatValue(s),
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        trendArrow(s),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            }),
           ],
         ),
       ),
