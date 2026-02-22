@@ -30,6 +30,7 @@ class LiveGameScreen extends ConsumerStatefulWidget {
 class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
   Map<String, String> _lastActionBadges = {};
   final Map<String, Timer> _badgeTimers = {};
+  bool _showHintsBanner = true;
 
   @override
   void initState() {
@@ -176,6 +177,10 @@ class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
                 ),
                 const Divider(height: 1, color: Color(0xFF333333)),
 
+                // Quick-tips banner (dismissible, once per session)
+                if (_showHintsBanner)
+                  _buildHintsBanner(context),
+
                 // Court lineup panel (replaces RotationIndicator + PlayerGrid)
                 Expanded(
                   child: CourtLineupPanel(
@@ -241,6 +246,65 @@ class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
               ),
             );
           },
+      ),
+    );
+  }
+
+  Widget _buildHintsBanner(BuildContext context) {
+    return Container(
+      color: const Color(0xFF1A2A1A),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Row(
+        children: [
+          const Icon(Icons.touch_app, size: 16, color: Colors.white54),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                style: const TextStyle(fontSize: 11, color: Colors.white60, height: 1.4),
+                children: [
+                  const TextSpan(
+                    text: 'Tip: ',
+                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white70),
+                  ),
+                  const TextSpan(text: 'Long-press '),
+                  WidgetSpan(
+                    alignment: PlaceholderAlignment.middle,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withAlpha(20),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                      child: const Text('players', style: TextStyle(fontSize: 10, color: Colors.white70, fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                  const TextSpan(text: ' for subs & libero  •  Long-press '),
+                  WidgetSpan(
+                    alignment: PlaceholderAlignment.middle,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withAlpha(20),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                      child: const Text('TO', style: TextStyle(fontSize: 10, color: Colors.white70, fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                  const TextSpan(text: ' to undo timeout'),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          GestureDetector(
+            onTap: () => setState(() => _showHintsBanner = false),
+            child: const Padding(
+              padding: EdgeInsets.all(4),
+              child: Icon(Icons.close, size: 14, color: Colors.white38),
+            ),
+          ),
+        ],
       ),
     );
   }
