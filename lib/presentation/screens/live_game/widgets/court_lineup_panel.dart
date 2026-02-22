@@ -587,12 +587,12 @@ class CourtLineupPanel extends StatelessWidget {
   }
 
   /// Long-press menu for a court player: Sub Out, Libero In/Out
-  void _showCourtPlayerMenu(
+  Future<void> _showCourtPlayerMenu(
     BuildContext context,
     Player player,
     int courtPosition,
     bool isDesignatedLibero,
-  ) {
+  ) async {
     final items = <PopupMenuEntry<String>>[];
     final isBackRow = const {1, 5, 6}.contains(courtPosition);
 
@@ -628,8 +628,7 @@ class CourtLineupPanel extends StatelessWidget {
 
     final box = context.findRenderObject() as RenderBox;
     final position = box.localToGlobal(Offset.zero);
-    final navigator = Navigator.of(context);
-    showMenu<String>(
+    final value = await showMenu<String>(
       context: context,
       position: RelativeRect.fromLTRB(
         position.dx,
@@ -638,21 +637,20 @@ class CourtLineupPanel extends StatelessWidget {
         position.dy + 1,
       ),
       items: items,
-    ).then((value) {
-      if (value == null) return;
-      switch (value) {
-        case 'libero_out':
-          onLiberoOut?.call();
-        case 'libero_in':
-          onLiberoIn?.call(player.id);
-        case 'sub_out':
-          _showPickBenchPlayerDialog(navigator.context, player);
-      }
-    });
+    );
+    if (value == null || !context.mounted) return;
+    switch (value) {
+      case 'libero_out':
+        onLiberoOut?.call();
+      case 'libero_in':
+        onLiberoIn?.call(player.id);
+      case 'sub_out':
+        _showPickBenchPlayerDialog(context, player);
+    }
   }
 
   /// Long-press menu for a bench player: Sub In, or Libero In
-  void _showBenchPlayerMenu(BuildContext context, Player player) {
+  Future<void> _showBenchPlayerMenu(BuildContext context, Player player) async {
     final items = <PopupMenuEntry<String>>[];
 
     if (onSubstitute != null) {
@@ -666,8 +664,7 @@ class CourtLineupPanel extends StatelessWidget {
 
     final box = context.findRenderObject() as RenderBox;
     final position = box.localToGlobal(Offset.zero);
-    final navigator = Navigator.of(context);
-    showMenu<String>(
+    final value = await showMenu<String>(
       context: context,
       position: RelativeRect.fromLTRB(
         position.dx,
@@ -676,12 +673,11 @@ class CourtLineupPanel extends StatelessWidget {
         position.dy + 1,
       ),
       items: items,
-    ).then((value) {
-      if (value == null) return;
-      if (value == 'sub_in') {
-        _showPickCourtPlayerDialog(navigator.context, player);
-      }
-    });
+    );
+    if (value == null || !context.mounted) return;
+    if (value == 'sub_in') {
+      _showPickCourtPlayerDialog(context, player);
+    }
   }
 
   /// Dialog to pick which bench player subs in for a court player being subbed out.
