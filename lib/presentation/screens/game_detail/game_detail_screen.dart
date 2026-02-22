@@ -7,6 +7,7 @@ import '../../../domain/models/play_event.dart';
 import '../../../domain/models/player_stats.dart';
 import '../../providers/game_providers.dart';
 import '../../providers/stats_providers.dart';
+import '../../providers/team_providers.dart';
 
 /// Game Detail Screen with Box Score and Play-by-Play tabs.
 class GameDetailScreen extends ConsumerWidget {
