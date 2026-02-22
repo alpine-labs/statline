@@ -648,11 +648,21 @@ class CourtLineupPanel extends StatelessWidget {
     }
   }
 
-  /// Long-press menu for a bench player: Sub In, or Libero In
+  /// Long-press menu for a bench player: Sub In, or Libero In (back-row pick)
   Future<void> _showBenchPlayerMenu(BuildContext context, Player player) async {
+    final isDesignatedLibero = player.id == liberoPlayerId;
     final items = <PopupMenuEntry<String>>[];
 
-    if (onSubstitute != null) {
+    // Libero on bench and not currently in → offer "Libero In" (pick back-row target)
+    if (isDesignatedLibero && !liberoIsIn && onLiberoIn != null) {
+      items.add(const PopupMenuItem(
+        value: 'libero_in',
+        child: Text('Libero In'),
+      ));
+    }
+
+    // Regular sub (non-libero bench players, or libero as normal sub)
+    if (!isDesignatedLibero && onSubstitute != null) {
       items.add(const PopupMenuItem(
         value: 'sub_in',
         child: Text('Sub In'),
@@ -676,7 +686,38 @@ class CourtLineupPanel extends StatelessWidget {
     if (value == null || !context.mounted) return;
     if (value == 'sub_in') {
       _showPickCourtPlayerDialog(context, player);
+    } else if (value == 'libero_in') {
+      _showPickBackRowPlayerDialog(context);
     }
+  }
+
+  /// Dialog to pick which back-row player the libero replaces (triggered from bench).
+  void _showPickBackRowPlayerDialog(BuildContext context) {
+    final backRowPositions = <int>[1, 5, 6];
+    final backRowPlayers = <Player>[];
+    for (final pos in backRowPositions) {
+      final player = _getPlayerAtPosition(pos);
+      if (player != null &&
+          player.id != liberoPlayerId &&
+          !player.positions.contains('L')) {
+        backRowPlayers.add(player);
+      }
+    }
+    if (backRowPlayers.isEmpty) return;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Replace which back-row player?'),
+        children: backRowPlayers.map((p) => SimpleDialogOption(
+          onPressed: () {
+            Navigator.pop(ctx);
+            onLiberoIn?.call(p.id);
+          },
+          child: Text('#${p.jerseyNumber} ${p.lastName}'),
+        )).toList(),
+      ),
+    );
   }
 
   /// Dialog to pick which bench player subs in for a court player being subbed out.

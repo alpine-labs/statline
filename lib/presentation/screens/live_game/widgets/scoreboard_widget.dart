@@ -174,16 +174,15 @@ class ScoreboardWidget extends StatelessWidget {
                     ),
                   ),
                 ],
-              // Compact sub count
-              if (subsThisSet > 0)
-                Text(
-                  '  S:$subsThisSet',
-                  style: TextStyle(
-                    color: _subsColor,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                  ),
+              // Compact sub count (always show to indicate max)
+              Text(
+                '  S:$subsThisSet/$maxSubsPerSet',
+                style: TextStyle(
+                  color: _subsColor,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
                 ),
+              ),
               // Side-out %
               if (sideoutOpportunities > 0) ...[
                 Text(
