@@ -54,18 +54,29 @@ class _GameDetailContent extends ConsumerStatefulWidget {
 
 class _GameDetailContentState extends ConsumerState<_GameDetailContent> {
   bool _correctionMode = false;
+  bool _isRecalculating = false;
+  int _correctionCount = 0;
 
   void _toggleCorrectionMode() {
     final entering = !_correctionMode;
-    setState(() => _correctionMode = entering);
-
-    if (!entering) {
+    if (entering) {
+      setState(() {
+        _correctionMode = true;
+        _correctionCount = 0;
+      });
+    } else {
       // Exiting correction mode → trigger score recalculation
       _recalculateScores();
     }
   }
 
+  void incrementCorrectionCount() {
+    _correctionCount++;
+  }
+
   Future<void> _recalculateScores() async {
+    setState(() => _isRecalculating = true);
+
     final statsRepo = ref.read(statsRepositoryProvider);
     await statsRepo.recalculateGameScores(widget.gameId);
 
@@ -95,6 +106,23 @@ class _GameDetailContentState extends ConsumerState<_GameDetailContent> {
     ref.invalidate(gamePlayEventsProvider(widget.gameId));
     ref.invalidate(gameAllPlayEventsProvider(widget.gameId));
     ref.invalidate(gamePlayerStatsProvider(widget.gameId));
+
+    if (mounted) {
+      setState(() {
+        _correctionMode = false;
+        _isRecalculating = false;
+      });
+      if (_correctionCount > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Stats recalculated — $_correctionCount correction${_correctionCount == 1 ? '' : 's'} applied',
+            ),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -190,13 +218,35 @@ class _GameDetailContentState extends ConsumerState<_GameDetailContent> {
             ],
           ),
         ),
-        body: TabBarView(
+        body: Stack(
           children: [
-            _BoxScoreTab(gameId: widget.gameId, game: game),
-            _PlayByPlayTab(
-              gameId: widget.gameId,
-              correctionMode: _correctionMode,
+            TabBarView(
+              children: [
+                _BoxScoreTab(gameId: widget.gameId, game: game),
+                _PlayByPlayTab(
+                  gameId: widget.gameId,
+                  correctionMode: _correctionMode,
+                  onCorrection: incrementCorrectionCount,
+                ),
+              ],
             ),
+            if (_isRecalculating)
+              Container(
+                color: Colors.black38,
+                child: const Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 16),
+                      Text(
+                        'Recalculating stats...',
+                        style: TextStyle(color: Colors.white, fontSize: 16),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -508,10 +558,12 @@ class _BoxScoreTab extends ConsumerWidget {
 class _PlayByPlayTab extends ConsumerStatefulWidget {
   final String gameId;
   final bool correctionMode;
+  final VoidCallback? onCorrection;
 
   const _PlayByPlayTab({
     required this.gameId,
     required this.correctionMode,
+    this.onCorrection,
   });
 
   @override
@@ -521,6 +573,8 @@ class _PlayByPlayTab extends ConsumerStatefulWidget {
 class _PlayByPlayTabState extends ConsumerState<_PlayByPlayTab> {
   /// Tracks event IDs pending delete confirmation (two-tap pattern).
   final Set<String> _pendingDeletes = {};
+  /// Tracks which set period IDs are collapsed.
+  final Set<String> _collapsedSets = {};
 
   @override
   Widget build(BuildContext context) {
@@ -584,41 +638,68 @@ class _PlayByPlayTabState extends ConsumerState<_PlayByPlayTab> {
                 ? 'Set ${period.periodNumber}'
                 : 'Set ${index + 1}';
 
+            final isCollapsed = _collapsedSets.contains(periodId);
+
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Sticky set header
-                Container(
-                  width: double.infinity,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  color: Theme.of(context)
-                      .colorScheme
-                      .surfaceContainerHighest,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        periodLabel,
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleSmall
-                            ?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                      if (period != null)
-                        Text(
-                          '${period.scoreUs}-${period.scoreThem}',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleSmall
-                              ?.copyWith(fontWeight: FontWeight.bold),
+                // Tappable set header (collapsible)
+                InkWell(
+                  onTap: () => setState(() {
+                    if (isCollapsed) {
+                      _collapsedSets.remove(periodId);
+                    } else {
+                      _collapsedSets.add(periodId);
+                    }
+                  }),
+                  child: Container(
+                    width: double.infinity,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    color: Theme.of(context)
+                        .colorScheme
+                        .surfaceContainerHighest,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              isCollapsed
+                                  ? Icons.expand_more
+                                  : Icons.expand_less,
+                              size: 20,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurface
+                                  .withAlpha(153),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              periodLabel,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                          ],
                         ),
-                    ],
+                        if (period != null)
+                          Text(
+                            '${period.scoreUs}-${period.scoreThem}',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleSmall
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
-                // Events
-                ...periodEvents.map((event) =>
-                    _buildEventRow(context, event, players)),
+                // Events (hidden when collapsed)
+                if (!isCollapsed)
+                  ...periodEvents.asMap().entries.map((entry) =>
+                      _buildEventRow(context, entry.value, players, entry.key)),
               ],
             );
           },
@@ -654,6 +735,7 @@ class _PlayByPlayTabState extends ConsumerState<_PlayByPlayTab> {
   Future<void> _deleteEvent(PlayEvent event) async {
     final statsRepo = ref.read(statsRepositoryProvider);
     await statsRepo.softDeleteEventForCorrection(event.id, 'delete');
+    widget.onCorrection?.call();
     // Refresh events
     ref.invalidate(gameAllPlayEventsProvider(widget.gameId));
     ref.invalidate(gamePlayEventsProvider(widget.gameId));
@@ -661,7 +743,7 @@ class _PlayByPlayTabState extends ConsumerState<_PlayByPlayTab> {
   }
 
   Widget _buildEventRow(
-      BuildContext context, PlayEvent event, List<dynamic> players) {
+      BuildContext context, PlayEvent event, List<dynamic> players, int index) {
     String getPlayerName(String playerId) {
       final p = players.where((p) => p.id == playerId);
       if (p.isNotEmpty) return p.first.shortName;
@@ -686,14 +768,31 @@ class _PlayByPlayTabState extends ConsumerState<_PlayByPlayTab> {
     final playerName =
         event.isOpponent ? 'Opponent' : getPlayerName(event.playerId);
 
+    // Left border color for score-changing events
+    final Color? leftBorderColor = isDeleted
+        ? null
+        : isOurPoint
+            ? StatLineColors.pointScored
+            : isTheirPoint
+                ? StatLineColors.pointLost
+                : null;
+
+    // Alternating row banding
+    final bandingColor = index.isOdd
+        ? Theme.of(context).colorScheme.surfaceContainerLowest
+        : null;
+
     final rowContent = Container(
       decoration: BoxDecoration(
         color: isPendingDelete
             ? StatLineColors.pointLost.withAlpha(25)
             : isDeleted
                 ? Theme.of(context).colorScheme.surface.withAlpha(128)
-                : null,
+                : bandingColor,
         border: Border(
+          left: leftBorderColor != null
+              ? BorderSide(color: leftBorderColor, width: 3)
+              : BorderSide.none,
           bottom: BorderSide(
             color: Theme.of(context).dividerColor.withAlpha(51),
           ),
@@ -854,6 +953,7 @@ class _PlayByPlayTabState extends ConsumerState<_PlayByPlayTab> {
         gameId: widget.gameId,
         players: players,
         onSaved: () {
+          widget.onCorrection?.call();
           ref.invalidate(gameAllPlayEventsProvider(widget.gameId));
           ref.invalidate(gamePlayEventsProvider(widget.gameId));
         },
@@ -876,6 +976,7 @@ class _PlayByPlayTabState extends ConsumerState<_PlayByPlayTab> {
         periods: periods,
         players: players,
         onSaved: () {
+          widget.onCorrection?.call();
           ref.invalidate(gameAllPlayEventsProvider(widget.gameId));
           ref.invalidate(gamePlayEventsProvider(widget.gameId));
         },

@@ -1,6 +1,6 @@
 import 'package:drift/drift.dart';
-import 'package:drift_flutter/drift_flutter.dart';
 
+import 'connection.dart';
 import 'daos/team_dao.dart';
 import 'daos/game_dao.dart';
 import 'daos/stats_dao.dart';
@@ -12,13 +12,7 @@ class AppDatabase extends GeneratedDatabase {
   static AppDatabase? _instance;
 
   static AppDatabase getInstance() {
-    return _instance ??= AppDatabase._(driftDatabase(
-      name: 'statline_db',
-      web: DriftWebOptions(
-        sqlite3Wasm: Uri.parse('sqlite3.wasm'),
-        driftWorker: Uri.parse('drift_worker.js'),
-      ),
-    ));
+    return _instance ??= AppDatabase._(openConnection());
   }
 
   // DAOs — lazily initialized

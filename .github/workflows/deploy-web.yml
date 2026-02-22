@@ -34,8 +34,12 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Setup Drift web (copy sqlite3.wasm + drift_worker.js)
-        run: dart run drift_dev:setup_web
+      - name: Download Drift web assets (sqlite3.wasm + drift_worker.js)
+        run: |
+          # Versions must match pubspec.lock: sqlite3 2.9.4, drift 2.28.2
+          curl -fsSL -o web/sqlite3.wasm "https://github.com/simolus3/sqlite3.dart/releases/download/sqlite3-2.9.4/sqlite3.wasm"
+          curl -fsSL -o web/drift_worker.js "https://github.com/simolus3/drift/releases/download/drift-2.28.2/drift_worker.js"
+          ls -la web/sqlite3.wasm web/drift_worker.js
 
       - name: Analyze
         run: flutter analyze
