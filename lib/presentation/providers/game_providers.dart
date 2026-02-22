@@ -56,6 +56,13 @@ final gamePlayEventsProvider =
   return statsRepo.getActivePlayEventsForGame(gameId);
 });
 
+/// Fetches ALL play events for a game including deleted (correction mode).
+final gameAllPlayEventsProvider =
+    FutureProvider.family<List<PlayEvent>, String>((ref, gameId) async {
+  final statsRepo = ref.read(_statsRepoForGameDetail);
+  return statsRepo.getAllPlayEventsForGame(gameId);
+});
+
 final _statsRepoForGameDetail = Provider<StatsRepository>((ref) {
   return StatsRepository(AppDatabase.getInstance());
 });

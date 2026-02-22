@@ -6,6 +6,7 @@ import '../../../domain/models/game_period.dart';
 import '../../../domain/models/play_event.dart';
 import '../../../domain/models/player_stats.dart';
 import '../../providers/game_providers.dart';
+import '../../providers/stats_providers.dart';
 import '../../providers/team_providers.dart';
 
 /// Game Detail Screen with Box Score and Play-by-Play tabs.
@@ -40,14 +41,43 @@ class GameDetailScreen extends ConsumerWidget {
   }
 }
 
-class _GameDetailContent extends ConsumerWidget {
+class _GameDetailContent extends ConsumerStatefulWidget {
   final Game game;
   final String gameId;
 
   const _GameDetailContent({required this.game, required this.gameId});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_GameDetailContent> createState() =>
+      _GameDetailContentState();
+}
+
+class _GameDetailContentState extends ConsumerState<_GameDetailContent> {
+  bool _correctionMode = false;
+
+  void _toggleCorrectionMode() {
+    final entering = !_correctionMode;
+    setState(() => _correctionMode = entering);
+
+    if (!entering) {
+      // Exiting correction mode → trigger score recalculation
+      _recalculateScores();
+    }
+  }
+
+  Future<void> _recalculateScores() async {
+    final statsRepo = ref.read(statsRepositoryProvider);
+    await statsRepo.recalculateGameScores(widget.gameId);
+    // Invalidate providers to refresh UI
+    ref.invalidate(gameDetailProvider(widget.gameId));
+    ref.invalidate(gamePeriodsProvider(widget.gameId));
+    ref.invalidate(gamePlayEventsProvider(widget.gameId));
+    ref.invalidate(gamePlayerStatsProvider(widget.gameId));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final game = widget.game;
     final isWin = game.result == GameResult.win;
     final isLoss = game.result == GameResult.loss;
     final resultLabel = isWin ? 'W' : isLoss ? 'L' : 'T';
@@ -91,17 +121,60 @@ class _GameDetailContent extends ConsumerWidget {
               ),
             ],
           ),
-          bottom: const TabBar(
+          actions: [
+            IconButton(
+              icon: Icon(
+                _correctionMode ? Icons.edit_off : Icons.edit,
+                color: _correctionMode
+                    ? StatLineColors.pointLost
+                    : null,
+              ),
+              tooltip: _correctionMode
+                  ? 'Exit Correction Mode'
+                  : 'Enter Correction Mode',
+              onPressed: _toggleCorrectionMode,
+            ),
+          ],
+          bottom: TabBar(
             tabs: [
-              Tab(text: 'Box Score'),
-              Tab(text: 'Play-by-Play'),
+              const Tab(text: 'Box Score'),
+              Tab(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Play-by-Play'),
+                    if (_correctionMode) ...[
+                      const SizedBox(width: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: StatLineColors.pointLost.withAlpha(51),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Text(
+                          'EDIT',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: StatLineColors.pointLost,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             ],
           ),
         ),
         body: TabBarView(
           children: [
-            _BoxScoreTab(gameId: gameId, game: game),
-            _PlayByPlayTab(gameId: gameId),
+            _BoxScoreTab(gameId: widget.gameId, game: game),
+            _PlayByPlayTab(
+              gameId: widget.gameId,
+              correctionMode: _correctionMode,
+            ),
           ],
         ),
       ),
@@ -410,15 +483,30 @@ class _BoxScoreTab extends ConsumerWidget {
 // Play-by-Play Tab
 // =============================================================================
 
-class _PlayByPlayTab extends ConsumerWidget {
+class _PlayByPlayTab extends ConsumerStatefulWidget {
   final String gameId;
+  final bool correctionMode;
 
-  const _PlayByPlayTab({required this.gameId});
+  const _PlayByPlayTab({
+    required this.gameId,
+    required this.correctionMode,
+  });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final eventsAsync = ref.watch(gamePlayEventsProvider(gameId));
-    final periodsAsync = ref.watch(gamePeriodsProvider(gameId));
+  ConsumerState<_PlayByPlayTab> createState() => _PlayByPlayTabState();
+}
+
+class _PlayByPlayTabState extends ConsumerState<_PlayByPlayTab> {
+  /// Tracks event IDs pending delete confirmation (two-tap pattern).
+  final Set<String> _pendingDeletes = {};
+
+  @override
+  Widget build(BuildContext context) {
+    // In correction mode, show all events (including deleted)
+    final eventsAsync = widget.correctionMode
+        ? ref.watch(gameAllPlayEventsProvider(widget.gameId))
+        : ref.watch(gamePlayEventsProvider(widget.gameId));
+    final periodsAsync = ref.watch(gamePeriodsProvider(widget.gameId));
     final playersAsync = ref.watch(playersProvider);
 
     return eventsAsync.when(
@@ -511,6 +599,15 @@ class _PlayByPlayTab extends ConsumerWidget {
     );
   }
 
+  Future<void> _deleteEvent(PlayEvent event) async {
+    final statsRepo = ref.read(statsRepositoryProvider);
+    await statsRepo.softDeleteEventForCorrection(event.id, 'delete');
+    // Refresh events
+    ref.invalidate(gameAllPlayEventsProvider(widget.gameId));
+    ref.invalidate(gamePlayEventsProvider(widget.gameId));
+    setState(() => _pendingDeletes.remove(event.id));
+  }
+
   Widget _buildEventRow(
       BuildContext context, PlayEvent event, List<dynamic> players) {
     String getPlayerName(String playerId) {
@@ -519,9 +616,11 @@ class _PlayByPlayTab extends ConsumerWidget {
       return playerId.length > 6 ? playerId.substring(0, 6) : playerId;
     }
 
+    final isDeleted = event.isDeleted;
     final isPoint = event.result == 'point_us' || event.result == 'point_them';
     final isOurPoint = event.result == 'point_us';
     final isTheirPoint = event.result == 'point_them';
+    final isPendingDelete = _pendingDeletes.contains(event.id);
 
     // Format action label
     final action = event.eventType
@@ -535,8 +634,13 @@ class _PlayByPlayTab extends ConsumerWidget {
     final playerName =
         event.isOpponent ? 'Opponent' : getPlayerName(event.playerId);
 
-    return Container(
+    final rowContent = Container(
       decoration: BoxDecoration(
+        color: isPendingDelete
+            ? StatLineColors.pointLost.withAlpha(25)
+            : isDeleted
+                ? Theme.of(context).colorScheme.surface.withAlpha(128)
+                : null,
         border: Border(
           bottom: BorderSide(
             color: Theme.of(context).dividerColor.withAlpha(51),
@@ -555,7 +659,9 @@ class _PlayByPlayTab extends ConsumerWidget {
                     color: Theme.of(context)
                         .colorScheme
                         .onSurface
-                        .withAlpha(102),
+                        .withAlpha(isDeleted ? 51 : 102),
+                    decoration:
+                        isDeleted ? TextDecoration.lineThrough : null,
                   ),
             ),
           ),
@@ -565,12 +671,16 @@ class _PlayByPlayTab extends ConsumerWidget {
             child: Text(
               '${event.scoreUsAfter}-${event.scoreThemAfter}',
               style: TextStyle(
-                fontWeight: isPoint ? FontWeight.bold : FontWeight.normal,
-                color: isOurPoint
-                    ? StatLineColors.pointScored
-                    : isTheirPoint
-                        ? StatLineColors.pointLost
-                        : null,
+                fontWeight:
+                    isPoint && !isDeleted ? FontWeight.bold : FontWeight.normal,
+                color: isDeleted
+                    ? Theme.of(context).colorScheme.onSurface.withAlpha(76)
+                    : isOurPoint
+                        ? StatLineColors.pointScored
+                        : isTheirPoint
+                            ? StatLineColors.pointLost
+                            : null,
+                decoration: isDeleted ? TextDecoration.lineThrough : null,
               ),
             ),
           ),
@@ -578,14 +688,41 @@ class _PlayByPlayTab extends ConsumerWidget {
           Expanded(
             child: Text(
               '$playerName — $action',
-              style: Theme.of(context).textTheme.bodyMedium,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: isDeleted
+                        ? Theme.of(context)
+                            .colorScheme
+                            .onSurface
+                            .withAlpha(76)
+                        : null,
+                    decoration:
+                        isDeleted ? TextDecoration.lineThrough : null,
+                  ),
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          // Result indicator
-          if (isPoint)
+          // Deleted label
+          if (isDeleted)
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: StatLineColors.pointLost.withAlpha(25),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: const Text(
+                'Deleted',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: StatLineColors.pointLost,
+                ),
+              ),
+            )
+          // Result indicator (not shown for deleted)
+          else if (isPoint)
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
                 color: (isOurPoint
                         ? StatLineColors.pointScored
@@ -604,6 +741,287 @@ class _PlayByPlayTab extends ConsumerWidget {
                 ),
               ),
             ),
+          // Delete button in correction mode
+          if (widget.correctionMode && !isDeleted) ...[
+            const SizedBox(width: 4),
+            SizedBox(
+              width: 32,
+              height: 32,
+              child: IconButton(
+                padding: EdgeInsets.zero,
+                iconSize: 18,
+                icon: Icon(
+                  isPendingDelete ? Icons.delete_forever : Icons.delete_outline,
+                  color: isPendingDelete
+                      ? StatLineColors.pointLost
+                      : Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withAlpha(128),
+                ),
+                tooltip: isPendingDelete ? 'Confirm Delete' : 'Delete',
+                onPressed: () {
+                  if (isPendingDelete) {
+                    _deleteEvent(event);
+                  } else {
+                    setState(() => _pendingDeletes.add(event.id));
+                    // Auto-cancel after 3 seconds
+                    Future.delayed(const Duration(seconds: 3), () {
+                      if (mounted) {
+                        setState(
+                            () => _pendingDeletes.remove(event.id));
+                      }
+                    });
+                  }
+                },
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+
+    // In correction mode, tapping opens the edit sheet (non-deleted events only)
+    if (widget.correctionMode && !isDeleted) {
+      return InkWell(
+        onTap: () => _showEditSheet(context, event, players),
+        child: rowContent,
+      );
+    }
+
+    return rowContent;
+  }
+
+  void _showEditSheet(
+      BuildContext context, PlayEvent event, List<dynamic> players) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => _EventEditSheet(
+        event: event,
+        gameId: widget.gameId,
+        players: players,
+        onSaved: () {
+          ref.invalidate(gameAllPlayEventsProvider(widget.gameId));
+          ref.invalidate(gamePlayEventsProvider(widget.gameId));
+        },
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// Event Edit Bottom Sheet
+// =============================================================================
+
+class _EventEditSheet extends ConsumerStatefulWidget {
+  final PlayEvent event;
+  final String gameId;
+  final List<dynamic> players;
+  final VoidCallback onSaved;
+
+  const _EventEditSheet({
+    required this.event,
+    required this.gameId,
+    required this.players,
+    required this.onSaved,
+  });
+
+  @override
+  ConsumerState<_EventEditSheet> createState() => _EventEditSheetState();
+}
+
+class _EventEditSheetState extends ConsumerState<_EventEditSheet> {
+  late String _selectedPlayerId;
+  late String _selectedCategory;
+  late String _selectedEventType;
+  late String _selectedResult;
+
+  // Available categories and their actions
+  static const _categoryActions = {
+    'attack': ['kill', 'attack_error', 'attack_attempt'],
+    'serve': ['service_ace', 'service_error', 'serve_attempt'],
+    'block': ['block_solo', 'block_assist', 'block_error'],
+    'defense': ['dig', 'dig_error'],
+    'reception': ['reception', 'reception_error', 'shank', 'overpass'],
+    'setting': ['assist', 'set_error', 'set_attempt'],
+    'scoring': ['point_us', 'point_them'],
+  };
+
+  // Default result mapping for actions
+  static const _actionResults = {
+    'kill': 'point_us',
+    'attack_error': 'point_them',
+    'attack_attempt': 'rally_continues',
+    'service_ace': 'point_us',
+    'service_error': 'point_them',
+    'serve_attempt': 'rally_continues',
+    'block_solo': 'point_us',
+    'block_assist': 'point_us',
+    'block_error': 'point_them',
+    'dig': 'rally_continues',
+    'dig_error': 'point_them',
+    'reception': 'rally_continues',
+    'reception_error': 'point_them',
+    'shank': 'point_them',
+    'overpass': 'point_them',
+    'assist': 'rally_continues',
+    'set_error': 'point_them',
+    'set_attempt': 'rally_continues',
+    'point_us': 'point_us',
+    'point_them': 'point_them',
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedPlayerId = widget.event.playerId;
+    _selectedCategory = widget.event.eventCategory;
+    _selectedEventType = widget.event.eventType;
+    _selectedResult = widget.event.result;
+  }
+
+  List<String> get _availableActions =>
+      _categoryActions[_selectedCategory] ?? [_selectedEventType];
+
+  Future<void> _save() async {
+    final statsRepo = ref.read(statsRepositoryProvider);
+
+    // Soft-delete original
+    await statsRepo.softDeleteEventForCorrection(widget.event.id, 'edit');
+
+    // Insert corrected event
+    final corrected = widget.event.copyWith(
+      id: '${widget.event.id}_c${DateTime.now().millisecondsSinceEpoch}',
+      playerId: _selectedPlayerId,
+      eventCategory: _selectedCategory,
+      eventType: _selectedEventType,
+      result: _selectedResult,
+      metadata: {...widget.event.metadata},
+      createdAt: DateTime.now(),
+    );
+    await statsRepo.insertCorrectionEvent(corrected, widget.event.id);
+
+    widget.onSaved();
+    if (mounted) Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final playerItems = widget.players
+        .map((p) => DropdownMenuItem<String>(
+              value: p.id as String,
+              child: Text('${p.shortName} (#${p.jerseyNumber})'),
+            ))
+        .toList();
+
+    final categoryItems = _categoryActions.keys
+        .map((c) => DropdownMenuItem<String>(
+              value: c,
+              child: Text(c[0].toUpperCase() + c.substring(1)),
+            ))
+        .toList();
+
+    final actionItems = _availableActions
+        .map((a) => DropdownMenuItem<String>(
+              value: a,
+              child: Text(a.replaceAll('_', ' ')),
+            ))
+        .toList();
+
+    final resultItems = ['point_us', 'point_them', 'rally_continues']
+        .map((r) => DropdownMenuItem<String>(
+              value: r,
+              child: Text(r.replaceAll('_', ' ')),
+            ))
+        .toList();
+
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        top: 16,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Edit Event',
+              style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 16),
+
+          // Player
+          DropdownButtonFormField<String>(
+            value: playerItems.any((i) => i.value == _selectedPlayerId)
+                ? _selectedPlayerId
+                : null,
+            decoration: const InputDecoration(labelText: 'Player'),
+            items: playerItems,
+            onChanged: (v) => setState(() => _selectedPlayerId = v!),
+          ),
+          const SizedBox(height: 12),
+
+          // Category
+          DropdownButtonFormField<String>(
+            value: _selectedCategory,
+            decoration: const InputDecoration(labelText: 'Category'),
+            items: categoryItems,
+            onChanged: (v) {
+              setState(() {
+                _selectedCategory = v!;
+                final actions = _availableActions;
+                if (!actions.contains(_selectedEventType)) {
+                  _selectedEventType = actions.first;
+                  _selectedResult =
+                      _actionResults[_selectedEventType] ?? 'rally_continues';
+                }
+              });
+            },
+          ),
+          const SizedBox(height: 12),
+
+          // Action
+          DropdownButtonFormField<String>(
+            value: _availableActions.contains(_selectedEventType)
+                ? _selectedEventType
+                : _availableActions.first,
+            decoration: const InputDecoration(labelText: 'Action'),
+            items: actionItems,
+            onChanged: (v) {
+              setState(() {
+                _selectedEventType = v!;
+                _selectedResult =
+                    _actionResults[_selectedEventType] ?? 'rally_continues';
+              });
+            },
+          ),
+          const SizedBox(height: 12),
+
+          // Result
+          DropdownButtonFormField<String>(
+            value: _selectedResult,
+            decoration: const InputDecoration(labelText: 'Result'),
+            items: resultItems,
+            onChanged: (v) => setState(() => _selectedResult = v!),
+          ),
+          const SizedBox(height: 24),
+
+          // Buttons
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              const SizedBox(width: 8),
+              FilledButton(
+                onPressed: _save,
+                child: const Text('Save'),
+              ),
+            ],
+          ),
         ],
       ),
     );
