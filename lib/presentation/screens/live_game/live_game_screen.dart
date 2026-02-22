@@ -153,6 +153,9 @@ class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
                       onToggleServe: () => ref
                           .read(liveGameStateProvider.notifier)
                           .toggleServe(),
+                      firstBallSideouts: liveState.firstBallSideouts,
+                      totalSideouts: liveState.totalSideouts,
+                      sideoutOpportunities: liveState.sideoutOpportunities,
                     ),
                     const Divider(height: 1, color: Color(0xFF333333)),
 
@@ -165,6 +168,7 @@ class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
                       onRotateBackward: () => ref
                           .read(liveGameStateProvider.notifier)
                           .rotateBackward(),
+                      serverName: _getServerDisplayName(liveState),
                     ),
                     const Divider(height: 1, color: Color(0xFF333333)),
 
@@ -509,6 +513,14 @@ class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
       );
     }
     return result;
+  }
+
+  String? _getServerDisplayName(LiveGameState liveState) {
+    final serverId = ref.read(liveGameStateProvider.notifier).getServerPlayerId();
+    if (serverId == null) return null;
+    final player = liveState.roster.where((p) => p.id == serverId);
+    if (player.isEmpty) return null;
+    return '#${player.first.jerseyNumber} ${player.first.lastName}';
   }
 
   void _handleLiberoToggle(

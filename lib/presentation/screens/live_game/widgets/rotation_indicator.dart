@@ -5,12 +5,14 @@ class RotationIndicator extends StatelessWidget {
   final int currentRotation;
   final VoidCallback? onRotateForward;
   final VoidCallback? onRotateBackward;
+  final String? serverName;
 
   const RotationIndicator({
     super.key,
     required this.currentRotation,
     this.onRotateForward,
     this.onRotateBackward,
+    this.serverName,
   });
 
   @override
@@ -57,6 +59,16 @@ class RotationIndicator extends StatelessWidget {
               size: 20,
             ),
           ),
+          if (serverName != null) ...[
+            const SizedBox(width: 12),
+            Text(
+              'Srv: $serverName',
+              style: const TextStyle(
+                color: Colors.white54,
+                fontSize: 11,
+              ),
+            ),
+          ],
         ],
       ),
     );

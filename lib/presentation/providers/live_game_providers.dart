@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/models/game.dart';
+import '../../domain/models/game_lineup.dart';
 import '../../domain/models/game_period.dart';
 import '../../domain/models/play_event.dart';
 import '../../domain/models/player.dart';
@@ -27,6 +28,12 @@ class LiveGameState {
   final bool liberoIsIn;
   final String? liberoReplacedPlayerId;
   final String? servingTeam; // 'us' or 'them'
+  final int firstBallSideouts;
+  final int totalSideouts;
+  final int sideoutOpportunities;
+  final bool inFirstBallSequence;
+  final int attacksSinceReception;
+  final List<GameLineup> lineup;
 
   const LiveGameState({
     this.game,
@@ -49,6 +56,12 @@ class LiveGameState {
     this.liberoIsIn = false,
     this.liberoReplacedPlayerId,
     this.servingTeam,
+    this.firstBallSideouts = 0,
+    this.totalSideouts = 0,
+    this.sideoutOpportunities = 0,
+    this.inFirstBallSequence = false,
+    this.attacksSinceReception = 0,
+    this.lineup = const [],
   });
 
   factory LiveGameState.initial() => const LiveGameState();
@@ -76,6 +89,12 @@ class LiveGameState {
     bool? liberoIsIn,
     String? Function()? liberoReplacedPlayerId,
     String? Function()? servingTeam,
+    int? firstBallSideouts,
+    int? totalSideouts,
+    int? sideoutOpportunities,
+    bool? inFirstBallSequence,
+    int? attacksSinceReception,
+    List<GameLineup>? lineup,
   }) {
     return LiveGameState(
       game: game != null ? game() : this.game,
@@ -105,6 +124,12 @@ class LiveGameState {
           : this.liberoReplacedPlayerId,
       servingTeam:
           servingTeam != null ? servingTeam() : this.servingTeam,
+      firstBallSideouts: firstBallSideouts ?? this.firstBallSideouts,
+      totalSideouts: totalSideouts ?? this.totalSideouts,
+      sideoutOpportunities: sideoutOpportunities ?? this.sideoutOpportunities,
+      inFirstBallSequence: inFirstBallSequence ?? this.inFirstBallSequence,
+      attacksSinceReception: attacksSinceReception ?? this.attacksSinceReception,
+      lineup: lineup ?? this.lineup,
     );
   }
 }
@@ -114,7 +139,7 @@ class LiveGameState {
 class LiveGameNotifier extends StateNotifier<LiveGameState> {
   LiveGameNotifier() : super(LiveGameState.initial());
 
-  void startGame(Game game, List<Player> roster, {int? maxSubsPerSet}) {
+  void startGame(Game game, List<Player> roster, {int? maxSubsPerSet, List<GameLineup>? lineup}) {
     final firstPeriod = GamePeriod(
       id: 'period_1',
       gameId: game.id,
@@ -138,6 +163,12 @@ class LiveGameNotifier extends StateNotifier<LiveGameState> {
       subsThisSet: 0,
       maxSubsPerSet: maxSubsPerSet,
       servingTeam: () => 'us',
+      firstBallSideouts: 0,
+      totalSideouts: 0,
+      sideoutOpportunities: 0,
+      inFirstBallSequence: false,
+      attacksSinceReception: 0,
+      lineup: lineup ?? const [],
     );
   }
 
@@ -154,14 +185,62 @@ class LiveGameNotifier extends StateNotifier<LiveGameState> {
     };
     final enrichedEvent = event.copyWith(metadata: metadata);
 
-    // Determine if serving team should toggle (side-out tracking)
+    // ── First-ball sideout tracking ──
+    bool newInFirstBall = state.inFirstBallSequence;
+    int newAttacks = state.attacksSinceReception;
+    int newFirstBallSideouts = state.firstBallSideouts;
+    int newTotalSideouts = state.totalSideouts;
+    int newSideoutOpps = state.sideoutOpportunities;
+
+    if (_isReceptionEvent(enrichedEvent.eventType)) {
+      newInFirstBall = true;
+      newAttacks = 0;
+    }
+    if (_isAttackEvent(enrichedEvent.eventType)) {
+      newAttacks++;
+    }
+    // Dig breaks first-ball sequence (extended rally)
+    if (enrichedEvent.eventType == 'dig' ||
+        enrichedEvent.eventType == 'dig_error') {
+      newInFirstBall = false;
+    }
+
+    // ── Score changes, serving team toggle, auto-rotate ──
     String? newServingTeam = state.servingTeam;
+    int? newRotation = state.currentRotation;
     final scoredUs = enrichedEvent.scoreUsAfter > state.scoreUs;
     final scoredThem = enrichedEvent.scoreThemAfter > state.scoreThem;
+
+    // Sideout opportunity: any point while opponent serves
+    if (state.servingTeam == 'them' && (scoredUs || scoredThem)) {
+      newSideoutOpps++;
+    }
+
     if (scoredUs && state.servingTeam == 'them') {
-      newServingTeam = 'us'; // side-out
+      // Side-out for us: we get serve, advance rotation
+      newServingTeam = 'us';
+      newTotalSideouts++;
+      if (newInFirstBall && newAttacks == 1) {
+        newFirstBallSideouts++;
+      }
+      if (newRotation != null) {
+        newRotation = (newRotation % 6) + 1;
+      }
     } else if (scoredThem && state.servingTeam == 'us') {
-      newServingTeam = 'them'; // side-out
+      // Side-out for them
+      newServingTeam = 'them';
+    }
+
+    // Reset first-ball tracking on any point
+    if (scoredUs || scoredThem) {
+      newInFirstBall = false;
+      newAttacks = 0;
+    }
+
+    // Auto-select server when we gain serve via sideout
+    String? newSelectedPlayer;
+    if (scoredUs && state.servingTeam == 'them') {
+      newSelectedPlayer = _getServerPlayerId(newRotation);
     }
 
     state = state.copyWith(
@@ -169,8 +248,14 @@ class LiveGameNotifier extends StateNotifier<LiveGameState> {
       undoStack: [...state.undoStack, enrichedEvent],
       scoreUs: enrichedEvent.scoreUsAfter,
       scoreThem: enrichedEvent.scoreThemAfter,
-      selectedPlayerId: () => null,
+      selectedPlayerId: () => newSelectedPlayer,
       servingTeam: () => newServingTeam,
+      currentRotation: () => newRotation,
+      firstBallSideouts: newFirstBallSideouts,
+      totalSideouts: newTotalSideouts,
+      sideoutOpportunities: newSideoutOpps,
+      inFirstBallSequence: newInFirstBall,
+      attacksSinceReception: newAttacks,
     );
 
     // Update current period score
@@ -242,6 +327,8 @@ class LiveGameNotifier extends StateNotifier<LiveGameState> {
       timeoutsThem: 0,
       subsThisSet: 0,
       servingTeam: () => newServing,
+      inFirstBallSequence: false,
+      attacksSinceReception: 0,
     );
   }
 
@@ -341,6 +428,29 @@ class LiveGameNotifier extends StateNotifier<LiveGameState> {
 
   void reset() {
     state = LiveGameState.initial();
+  }
+
+  // ── Serve tracking ──────────────────────────────────────────────────────
+
+  /// Returns the player ID of the current server (Position 1 in rotation).
+  String? getServerPlayerId() => _getServerPlayerId(state.currentRotation);
+
+  String? _getServerPlayerId(int? rotation) {
+    if (rotation == null || state.lineup.isEmpty) return null;
+    final match = state.lineup.where((l) => l.startingRotation == rotation);
+    return match.isNotEmpty ? match.first.playerId : null;
+  }
+
+  // ── Event classification helpers ────────────────────────────────────────
+
+  static bool _isReceptionEvent(String eventType) {
+    return const {'pass_3', 'pass_2', 'pass_1', 'pass_0', 'overpass', 'pass_error'}
+        .contains(eventType);
+  }
+
+  static bool _isAttackEvent(String eventType) {
+    return const {'kill', 'attack_error', 'blocked', 'zero_attack'}
+        .contains(eventType);
   }
 }
 

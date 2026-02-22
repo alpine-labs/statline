@@ -20,6 +20,9 @@ class ScoreboardWidget extends StatelessWidget {
   final VoidCallback? onRecordSub;
   final String? servingTeam;
   final VoidCallback? onToggleServe;
+  final int firstBallSideouts;
+  final int totalSideouts;
+  final int sideoutOpportunities;
 
   const ScoreboardWidget({
     super.key,
@@ -38,6 +41,9 @@ class ScoreboardWidget extends StatelessWidget {
     this.onRecordSub,
     this.servingTeam,
     this.onToggleServe,
+    this.firstBallSideouts = 0,
+    this.totalSideouts = 0,
+    this.sideoutOpportunities = 0,
   });
 
   @override
@@ -266,6 +272,34 @@ class ScoreboardWidget extends StatelessWidget {
               ),
             ),
           ),
+          // Side-out stats
+          if (sideoutOpportunities > 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'SO: ${(totalSideouts / sideoutOpportunities * 100).toStringAsFixed(0)}%'
+                    ' ($totalSideouts/$sideoutOpportunities)',
+                    style: TextStyle(
+                      color: Colors.white.withAlpha(179),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  if (totalSideouts > 0) ...[
+                    Text(
+                      '  1st: ${(firstBallSideouts / totalSideouts * 100).toStringAsFixed(0)}%',
+                      style: TextStyle(
+                        color: Colors.white.withAlpha(128),
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
         ],
       ),
     );

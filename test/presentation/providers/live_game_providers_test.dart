@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:statline/presentation/providers/live_game_providers.dart';
 import 'package:statline/domain/models/game.dart';
+import 'package:statline/domain/models/game_lineup.dart';
 import 'package:statline/domain/models/play_event.dart';
 import 'package:statline/domain/models/player.dart';
 
@@ -304,6 +305,183 @@ void main() {
       expect(state.game, isNull);
       expect(state.playEvents, isEmpty);
       expect(state.scoreUs, 0);
+    });
+  });
+
+  // ── Phase C: Auto-rotate, first-ball sideout, serve tracking ──────────
+
+  group('auto-rotate on sideout', () {
+    setUp(() => notifier.startGame(game, roster));
+
+    test('rotation advances when we sideout (score while receiving)', () {
+      // We start serving (R1). Opponent scores → sideout for them.
+      notifier.recordEvent(_makeEvent('serve_error', 'serve', 'point_them',
+          scoreUs: 0, scoreThem: 1));
+      expect(notifier.state.servingTeam, 'them');
+      expect(notifier.state.currentRotation, 1); // no change for us
+
+      // We score while they serve → sideout for us → rotate
+      notifier.recordEvent(_makeEvent('kill', 'attack', 'point_us',
+          scoreUs: 1, scoreThem: 1));
+      expect(notifier.state.servingTeam, 'us');
+      expect(notifier.state.currentRotation, 2);
+    });
+
+    test('rotation stays when serving team scores', () {
+      notifier.recordEvent(_makeEvent('ace', 'serve', 'point_us',
+          scoreUs: 1, scoreThem: 0));
+      expect(notifier.state.currentRotation, 1);
+      expect(notifier.state.servingTeam, 'us');
+    });
+
+    test('rotation wraps from R6 to R1', () {
+      // Advance to R6 manually
+      for (int i = 0; i < 5; i++) {
+        notifier.rotateForward();
+      }
+      expect(notifier.state.currentRotation, 6);
+
+      // Lose serve
+      notifier.recordEvent(_makeEvent('serve_error', 'serve', 'point_them',
+          scoreUs: 0, scoreThem: 1));
+      expect(notifier.state.servingTeam, 'them');
+
+      // Sideout from R6 → should wrap to R1
+      notifier.recordEvent(_makeEvent('kill', 'attack', 'point_us',
+          scoreUs: 1, scoreThem: 1));
+      expect(notifier.state.currentRotation, 1);
+    });
+
+    test('manual rotation override still works', () {
+      notifier.rotateForward();
+      expect(notifier.state.currentRotation, 2);
+      notifier.rotateBackward();
+      expect(notifier.state.currentRotation, 1);
+    });
+  });
+
+  group('first-ball sideout', () {
+    setUp(() {
+      notifier.startGame(game, roster);
+      // Put opponent on serve so we can test sideout
+      notifier.recordEvent(_makeEvent('serve_error', 'serve', 'point_them',
+          scoreUs: 0, scoreThem: 1));
+      expect(notifier.state.servingTeam, 'them');
+    });
+
+    test('detected: kill on first attack after reception', () {
+      // Reception
+      notifier.recordEvent(_makeEvent('pass_3', 'pass', 'rally_continues',
+          scoreUs: 0, scoreThem: 1));
+      // Kill (first attack) → first-ball sideout
+      notifier.recordEvent(_makeEvent('kill', 'attack', 'point_us',
+          scoreUs: 1, scoreThem: 1));
+
+      expect(notifier.state.firstBallSideouts, 1);
+      expect(notifier.state.totalSideouts, 1);
+    });
+
+    test('NOT detected: dig breaks first-ball sequence (extended rally)', () {
+      // Reception
+      notifier.recordEvent(_makeEvent('pass_2', 'pass', 'rally_continues',
+          scoreUs: 0, scoreThem: 1));
+      // Dig (rally continues → breaks first-ball)
+      notifier.recordEvent(_makeEvent('dig', 'defense', 'rally_continues',
+          scoreUs: 0, scoreThem: 1));
+      // Kill after extended rally
+      notifier.recordEvent(_makeEvent('kill', 'attack', 'point_us',
+          scoreUs: 1, scoreThem: 1));
+
+      expect(notifier.state.firstBallSideouts, 0);
+      expect(notifier.state.totalSideouts, 1);
+    });
+
+    test('NOT detected: multiple attacks before kill', () {
+      // Reception
+      notifier.recordEvent(_makeEvent('pass_1', 'pass', 'rally_continues',
+          scoreUs: 0, scoreThem: 1));
+      // First attack — zero attack (rally continues)
+      notifier.recordEvent(_makeEvent('zero_attack', 'attack', 'rally_continues',
+          scoreUs: 0, scoreThem: 1));
+      // Second attack — kill
+      notifier.recordEvent(_makeEvent('kill', 'attack', 'point_us',
+          scoreUs: 1, scoreThem: 1));
+
+      expect(notifier.state.firstBallSideouts, 0);
+      expect(notifier.state.totalSideouts, 1);
+    });
+
+    test('tracks sideout opportunities correctly', () {
+      // They serve → opponent scores (failed sideout opportunity)
+      notifier.recordEvent(_makeEvent('opp_kill', 'opponent', 'point_them',
+          scoreUs: 0, scoreThem: 2));
+
+      expect(notifier.state.sideoutOpportunities, 1);
+      expect(notifier.state.totalSideouts, 0);
+    });
+  });
+
+  group('serve tracking with lineup', () {
+    final sixPlayerRoster = [
+      Player(id: 'p1', firstName: 'Alice', lastName: 'A', jerseyNumber: '1',
+          positions: ['OH'], createdAt: now, updatedAt: now),
+      Player(id: 'p2', firstName: 'Bob', lastName: 'B', jerseyNumber: '2',
+          positions: ['S'], createdAt: now, updatedAt: now),
+      Player(id: 'p3', firstName: 'Carol', lastName: 'C', jerseyNumber: '3',
+          positions: ['MB'], createdAt: now, updatedAt: now),
+      Player(id: 'p4', firstName: 'Dan', lastName: 'D', jerseyNumber: '4',
+          positions: ['OPP'], createdAt: now, updatedAt: now),
+      Player(id: 'p5', firstName: 'Eve', lastName: 'E', jerseyNumber: '5',
+          positions: ['OH'], createdAt: now, updatedAt: now),
+      Player(id: 'p6', firstName: 'Fay', lastName: 'F', jerseyNumber: '6',
+          positions: ['MB'], createdAt: now, updatedAt: now),
+    ];
+
+    final lineup = [
+      GameLineup(id: 'l1', gameId: 'g1', playerId: 'p1', position: 'OH', startingRotation: 1),
+      GameLineup(id: 'l2', gameId: 'g1', playerId: 'p2', position: 'S', startingRotation: 2),
+      GameLineup(id: 'l3', gameId: 'g1', playerId: 'p3', position: 'MB', startingRotation: 3),
+      GameLineup(id: 'l4', gameId: 'g1', playerId: 'p4', position: 'OPP', startingRotation: 4),
+      GameLineup(id: 'l5', gameId: 'g1', playerId: 'p5', position: 'OH', startingRotation: 5),
+      GameLineup(id: 'l6', gameId: 'g1', playerId: 'p6', position: 'MB', startingRotation: 6),
+    ];
+
+    test('server matches position 1 player at R1', () {
+      notifier.startGame(game, sixPlayerRoster, lineup: lineup);
+      expect(notifier.getServerPlayerId(), 'p1');
+    });
+
+    test('server changes after manual rotation', () {
+      notifier.startGame(game, sixPlayerRoster, lineup: lineup);
+      notifier.rotateForward();
+      expect(notifier.getServerPlayerId(), 'p2');
+    });
+
+    test('server updates on auto-rotate sideout', () {
+      notifier.startGame(game, sixPlayerRoster, lineup: lineup);
+      // Lose serve
+      notifier.recordEvent(_makeEvent('serve_error', 'serve', 'point_them',
+          scoreUs: 0, scoreThem: 1));
+      // Sideout → rotation to R2 → server should be p2
+      notifier.recordEvent(_makeEvent('kill', 'attack', 'point_us',
+          scoreUs: 1, scoreThem: 1));
+      expect(notifier.getServerPlayerId(), 'p2');
+    });
+
+    test('auto-selects server on sideout', () {
+      notifier.startGame(game, sixPlayerRoster, lineup: lineup);
+      // Lose serve
+      notifier.recordEvent(_makeEvent('serve_error', 'serve', 'point_them',
+          scoreUs: 0, scoreThem: 1));
+      // Sideout → auto-select server at R2 = p2
+      notifier.recordEvent(_makeEvent('kill', 'attack', 'point_us',
+          scoreUs: 1, scoreThem: 1));
+      expect(notifier.state.selectedPlayerId, 'p2');
+    });
+
+    test('returns null when no lineup is set', () {
+      notifier.startGame(game, sixPlayerRoster);
+      expect(notifier.getServerPlayerId(), isNull);
     });
   });
 }
