@@ -34,6 +34,9 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Setup Drift web (copy sqlite3.wasm + drift_worker.js)
+        run: dart run drift_dev:setup_web
+
       - name: Analyze
         run: flutter analyze
 
