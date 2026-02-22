@@ -154,62 +154,7 @@ class DashboardScreen extends ConsumerWidget {
   }
 
   Widget _buildEmptyState(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Row(
-          children: [
-            Icon(Icons.sports_volleyball,
-                color: StatLineColors.logoGreen),
-            const SizedBox(width: 8),
-            Text(
-              'StatLine',
-              style: TextStyle(
-                color: StatLineColors.logoGreen,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-      ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.sports_volleyball,
-                size: 80,
-                color: Theme.of(context).colorScheme.primary.withAlpha(128),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                'Welcome to StatLine',
-                style: Theme.of(context).textTheme.headlineMedium,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Select a team to get started',
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withAlpha(153),
-                    ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 32),
-              FilledButton.icon(
-                onPressed: () => context.go('/teams'),
-                icon: const Icon(Icons.groups),
-                label: const Text('Go to Teams'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    return const _EmptyDashboard();
   }
 
   Widget _buildStartGameCard(BuildContext context, String teamName) {
@@ -732,5 +677,302 @@ class DashboardScreen extends ConsumerWidget {
       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
     ];
     return '${months[date.month - 1]} ${date.day}';
+  }
+}
+
+// ── Empty Dashboard (no team selected) ───────────────────────────────────────
+
+class _EmptyDashboard extends ConsumerWidget {
+  const _EmptyDashboard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final teamsAsync = ref.watch(teamsProvider);
+    final seasonsAsync = ref.watch(seasonsProvider);
+    final theme = Theme.of(context);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Row(
+          children: [
+            Icon(Icons.sports_volleyball, color: StatLineColors.logoGreen),
+            const SizedBox(width: 8),
+            Text(
+              'StatLine',
+              style: TextStyle(
+                color: StatLineColors.logoGreen,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Hero section ──────────────────────────────────────────
+            Center(
+              child: Column(
+                children: [
+                  Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      color: StatLineColors.logoGreen.withAlpha(30),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.sports_volleyball,
+                      size: 44,
+                      color: StatLineColors.logoGreen,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Welcome to StatLine',
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Select a team below to view your dashboard',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurface.withAlpha(153),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 28),
+
+            // ── Your Teams section ────────────────────────────────────
+            Text(
+              'Your Teams',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            teamsAsync.when(
+              loading: () => const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: CircularProgressIndicator(),
+                ),
+              ),
+              error: (e, _) => Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text('Error loading teams: $e'),
+                ),
+              ),
+              data: (teams) {
+                if (teams.isEmpty) {
+                  return _buildNoTeamsCard(context, theme);
+                }
+                return Column(
+                  children: [
+                    ...teams.map((team) => _buildTeamCard(
+                          context, ref, theme, team, seasonsAsync)),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: () => context.go('/teams'),
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text('Manage Teams'),
+                    ),
+                  ],
+                );
+              },
+            ),
+
+            const SizedBox(height: 28),
+
+            // ── Features overview ─────────────────────────────────────
+            Text(
+              'What You Can Track',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            _buildFeatureRow(
+              theme,
+              Icons.play_circle_outline,
+              'Live Scoring',
+              'Tap-to-record play-by-play during games',
+            ),
+            _buildFeatureRow(
+              theme,
+              Icons.bar_chart,
+              'Season Stats',
+              'Kills, aces, digs, hitting % and more',
+            ),
+            _buildFeatureRow(
+              theme,
+              Icons.edit_note,
+              'Post-Game Corrections',
+              'Fix mistakes without losing data',
+            ),
+            _buildFeatureRow(
+              theme,
+              Icons.autorenew,
+              'Auto-Rotate',
+              'Rotation and serve tracking on side-outs',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTeamCard(
+    BuildContext context,
+    WidgetRef ref,
+    ThemeData theme,
+    Team team,
+    AsyncValue<List<Season>> seasonsAsync,
+  ) {
+    final sportColor = StatLineColors.forSport(team.sport);
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      margin: const EdgeInsets.only(bottom: 8),
+      child: InkWell(
+        onTap: () {
+          ref.read(selectedTeamProvider.notifier).state = team;
+          // Auto-select the active season for this team
+          seasonsAsync.whenData((seasons) {
+            final active = seasons
+                .where((s) => s.teamId == team.id && s.isActive)
+                .toList();
+            if (active.isNotEmpty) {
+              ref.read(activeSeasonProvider.notifier).state = active.first;
+            }
+          });
+        },
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border(left: BorderSide(color: sportColor, width: 4)),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              SportIcon(sport: team.sport, size: 32, color: sportColor),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      team.name,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      [
+                        team.sport[0].toUpperCase() + team.sport.substring(1),
+                        team.level,
+                        if (team.ageGroup != null) team.ageGroup!,
+                        team.gender,
+                      ].join(' · '),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurface.withAlpha(153),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right,
+                color: theme.colorScheme.onSurface.withAlpha(100),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNoTeamsCard(BuildContext context, ThemeData theme) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            Icon(
+              Icons.groups_outlined,
+              size: 48,
+              color: theme.colorScheme.onSurface.withAlpha(100),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'No teams yet',
+              style: theme.textTheme.titleSmall,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Create your first team to start tracking stats',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface.withAlpha(153),
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: () => context.go('/teams'),
+              icon: const Icon(Icons.add),
+              label: const Text('Create Team'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFeatureRow(
+    ThemeData theme,
+    IconData icon,
+    String title,
+    String subtitle,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: StatLineColors.logoGreen.withAlpha(20),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, size: 20, color: StatLineColors.logoGreen),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                )),
+                Text(
+                  subtitle,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withAlpha(140),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
