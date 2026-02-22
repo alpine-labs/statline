@@ -8,7 +8,9 @@ import '../../providers/stats_providers.dart';
 import '../../../domain/models/team.dart';
 import '../../../domain/models/game.dart';
 import '../../../core/theme/colors.dart';
+import 'edit_team_screen.dart';
 import 'player_form_screen.dart';
+import 'season_screen.dart';
 
 class TeamDetailScreen extends ConsumerStatefulWidget {
   final Team team;
@@ -73,6 +75,48 @@ class _TeamDetailScreenState extends ConsumerState<TeamDetailScreen>
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.team.name),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit_outlined),
+            tooltip: 'Edit Team',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => EditTeamScreen(team: widget.team),
+              ),
+            ),
+          ),
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              if (value == 'seasons') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => SeasonScreen(team: widget.team),
+                  ),
+                );
+              }
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'seasons', child: Text('Manage Seasons')),
+            ],
+          ),
+        ],
+      ),
+      floatingActionButton: ListenableBuilder(
+        listenable: _tabController,
+        builder: (context, _) {
+          if (_tabController.index != 1) return const SizedBox.shrink();
+          return FloatingActionButton(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => PlayerFormScreen(team: widget.team),
+              ),
+            ),
+            child: const Icon(Icons.person_add),
+          );
+        },
       ),
       body: Column(
         children: [
