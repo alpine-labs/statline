@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../providers/team_providers.dart';
 import '../../providers/game_providers.dart';
 import '../../providers/stats_providers.dart';
+import '../../providers/dashboard_insights_provider.dart';
 import '../../widgets/stat_card.dart';
 import '../../widgets/sport_icon.dart';
 import '../../../core/theme/colors.dart';
@@ -11,6 +12,9 @@ import '../../../domain/models/game.dart';
 import '../../../domain/models/team.dart';
 import '../../../domain/models/season.dart';
 import '../game_detail/game_detail_screen.dart';
+import 'widgets/efficiency_trend_chart.dart';
+import 'widgets/points_source_chart.dart';
+import 'widgets/player_contribution_chart.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -83,10 +87,10 @@ class DashboardScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
 
-          // 2b. Trends / Insights card
+          // 2b. Insights panel (tabbed charts)
           gamesAsync.when(
             data: (games) => statsAsync.when(
-              data: (stats) => _buildTrendsCard(context, games, stats, ref),
+              data: (stats) => _InsightsPanel(games: games, stats: stats),
               loading: () => const SizedBox.shrink(),
               error: (_, __) => const SizedBox.shrink(),
             ),
@@ -468,102 +472,6 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  /// Generate simple insight strings from season stats and game data.
-  List<String> _generateInsights(
-      List<Game> games, List<dynamic> stats, WidgetRef ref) {
-    final insights = <String>[];
-
-    // 1. Win/loss streak check
-    final completed = games
-        .where((g) => g.status == GameStatus.completed && g.result != null)
-        .toList()
-      ..sort((a, b) => b.gameDate.compareTo(a.gameDate));
-    if (completed.length >= 2) {
-      final firstResult = completed.first.result!;
-      int streakCount = 0;
-      for (final g in completed) {
-        if (g.result == firstResult) {
-          streakCount++;
-        } else {
-          break;
-        }
-      }
-      if (streakCount >= 3 && firstResult == GameResult.win) {
-        insights.add('🔥 Team is on a $streakCount-game win streak!');
-      } else if (streakCount >= 3 && firstResult == GameResult.loss) {
-        insights.add('⚠️ Team is on a $streakCount-game losing streak');
-      }
-    }
-
-    // 2. Service errors check — flag if team total is high
-    if (stats.isNotEmpty) {
-      final totalServiceErrors = stats.fold<num>(
-          0, (sum, s) => sum + ((s.statsTotals['serviceErrors'] ?? 0) as num));
-      final totalGames = stats
-          .map((s) => s.gamesPlayed as int)
-          .fold<int>(0, (a, b) => a > b ? a : b);
-      if (totalGames > 0) {
-        final errorsPerGame = totalServiceErrors / totalGames;
-        if (errorsPerGame > 5) {
-          insights.add(
-              '📈 Service errors trending up (${errorsPerGame.toStringAsFixed(1)}/game)');
-        }
-      }
-    }
-
-    // 3. Top hitter hitting % dip check
-    if (stats.isNotEmpty) {
-      final playersAsync = ref.read(playersProvider);
-      final players = playersAsync.valueOrNull ?? [];
-      String getPlayerName(String playerId) {
-        final p = players.where((p) => p.id == playerId);
-        return p.isNotEmpty ? p.first.shortName : 'Player';
-      }
-
-      final sortedByKills = List.from(stats)
-        ..sort((a, b) => ((b.statsTotals['kills'] ?? 0) as num)
-            .compareTo((a.statsTotals['kills'] ?? 0) as num));
-      if (sortedByKills.isNotEmpty) {
-        final topHitter = sortedByKills.first;
-        final hitPct =
-            (topHitter.computedMetrics['hittingPercentage'] ?? 0) as num;
-        if (hitPct < 0.200 && (topHitter.statsTotals['kills'] ?? 0) > 10) {
-          insights.add(
-              "⚠️ ${getPlayerName(topHitter.playerId)}'s hitting % has dipped recently");
-        }
-      }
-    }
-
-    return insights;
-  }
-
-  Widget _buildTrendsCard(BuildContext context, List<Game> games,
-      List<dynamic> stats, WidgetRef ref) {
-    final insights = _generateInsights(games, stats, ref);
-    final displayInsights = insights.isNotEmpty
-        ? insights
-        : ['📊 Stats looking steady — keep it up!'];
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Insights',
-                style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            ...displayInsights.map((insight) => Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Text(insight,
-                      style: Theme.of(context).textTheme.bodyMedium),
-                )),
-          ],
-        ),
-      ),
-    );
-  }
-
   /// Returns a trend arrow widget: ▲ green if above average, ▼ red if below.
   Widget _buildTrendArrow(num value, num average) {
     if (average == 0) return const SizedBox.shrink();
@@ -687,6 +595,181 @@ class DashboardScreen extends ConsumerWidget {
       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
     ];
     return '${months[date.month - 1]} ${date.day}';
+  }
+}
+
+// ── Insights Panel (tabbed charts + alert summary) ───────────────────────────
+
+class _InsightsPanel extends ConsumerStatefulWidget {
+  final List<Game> games;
+  final List<dynamic> stats;
+
+  const _InsightsPanel({required this.games, required this.stats});
+
+  @override
+  ConsumerState<_InsightsPanel> createState() => _InsightsPanelState();
+}
+
+class _InsightsPanelState extends ConsumerState<_InsightsPanel>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  /// Generate text insight alerts from games and stats.
+  List<String> _generateAlerts() {
+    final alerts = <String>[];
+    final completed = widget.games
+        .where((g) => g.status == GameStatus.completed && g.result != null)
+        .toList()
+      ..sort((a, b) => b.gameDate.compareTo(a.gameDate));
+
+    if (completed.length >= 3) {
+      final firstResult = completed.first.result!;
+      int count = 0;
+      for (final g in completed) {
+        if (g.result == firstResult) {
+          count++;
+        } else {
+          break;
+        }
+      }
+      if (count >= 3 && firstResult == GameResult.win) {
+        alerts.add('🔥 $count-game win streak');
+      } else if (count >= 3 && firstResult == GameResult.loss) {
+        alerts.add('⚠️ $count-game losing streak');
+      }
+    }
+
+    if (widget.stats.isNotEmpty) {
+      final totalServiceErrors = widget.stats.fold<num>(
+          0, (sum, s) => sum + ((s.statsTotals['serviceErrors'] ?? 0) as num));
+      final totalGames = widget.stats
+          .map((s) => s.gamesPlayed as int)
+          .fold<int>(0, (a, b) => a > b ? a : b);
+      if (totalGames > 0 && totalServiceErrors / totalGames > 5) {
+        alerts.add('📈 High service errors');
+      }
+    }
+
+    return alerts.isEmpty ? ['📊 Stats looking steady'] : alerts;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final alerts = _generateAlerts();
+    final efficiencyTrend = ref.watch(efficiencyTrendProvider);
+    final pointsSource = ref.watch(pointsSourceProvider);
+    final playerContribution = ref.watch(playerContributionProvider);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Alert summary row
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: alerts
+                      .map((a) => Padding(
+                            padding: const EdgeInsets.only(right: 12),
+                            child: Text(a,
+                                style: Theme.of(context).textTheme.bodySmall),
+                          ))
+                      .toList(),
+                ),
+              ),
+            ),
+            // Tab bar
+            TabBar(
+              controller: _tabController,
+              labelStyle: Theme.of(context).textTheme.labelMedium,
+              tabs: const [
+                Tab(text: 'Trends'),
+                Tab(text: 'Balance'),
+                Tab(text: 'Form'),
+              ],
+            ),
+            // Tab content
+            SizedBox(
+              height: 350,
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  // Trends tab
+                  SingleChildScrollView(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: EfficiencyTrendChart(data: efficiencyTrend),
+                  ),
+                  // Balance tab
+                  SingleChildScrollView(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Column(
+                      children: [
+                        PointsSourceChart(data: pointsSource),
+                        const SizedBox(height: 16),
+                        PlayerContributionChart(data: playerContribution),
+                      ],
+                    ),
+                  ),
+                  // Form tab (placeholder for Phase 3 heatmap)
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.grid_on,
+                            size: 40,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurface
+                                .withAlpha(80),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Recent Form Heatmap',
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Coming in a future update',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurface
+                                      .withAlpha(128),
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

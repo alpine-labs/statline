@@ -1,8 +1,32 @@
 import '../../models/play_event.dart';
+import '../../models/player_stats.dart';
 
 /// Volleyball-specific stat calculation helpers.
 class VolleyballStats {
   VolleyballStats._();
+
+  // ── Hitting % thresholds ─────────────────────────────────────────────────
+  static const double hittingPctGood = 0.250;
+  static const double hittingPctAverage = 0.150;
+  static const double hittingPctPoor = 0.100;
+
+  // ── Service error thresholds (per game) ──────────────────────────────────
+  static const double serviceErrorsHighPerGame = 5.0;
+  static const double serviceErrorsModeratePerGame = 3.0;
+
+  /// Aggregate team hitting percentage from all players' season totals.
+  static double computeTeamHittingPercentage(
+      List<PlayerSeasonStatsModel> stats) {
+    int totalKills = 0;
+    int totalErrors = 0;
+    int totalAttempts = 0;
+    for (final s in stats) {
+      totalKills += (s.statsTotals['kills'] as num?)?.toInt() ?? 0;
+      totalErrors += (s.statsTotals['errors'] as num?)?.toInt() ?? 0;
+      totalAttempts += (s.statsTotals['totalAttempts'] as num?)?.toInt() ?? 0;
+    }
+    return computeHittingPercentage(totalKills, totalErrors, totalAttempts);
+  }
 
   /// Hitting percentage: (kills - errors) / attempts.
   /// Returns 0.0 if attempts is 0.
