@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/stats_providers.dart';
 import '../../providers/team_providers.dart';
 import '../../../domain/models/player_stats.dart';
+import '../../../domain/sports/sport_plugin.dart';
+import '../../../domain/stats/stat_calculator.dart';
 
 /// Top players ranked by stat category.
 class LeaderboardScreen extends ConsumerStatefulWidget {
@@ -13,41 +15,50 @@ class LeaderboardScreen extends ConsumerStatefulWidget {
 }
 
 class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
-  String _selectedStat = 'Kills';
+  String? _selectedStatKey;
 
-  static const _statCategories = [
-    'Kills',
-    'Hitting %',
-    'Aces',
-    'Digs',
-    'Blocks',
-    'Points',
-    'Assists',
-  ];
+  List<StatColumn> _columnsForSport(String sport) {
+    try {
+      final plugin = StatCalculator.getSportPlugin(sport);
+      return plugin.seasonStatsColumns;
+    } catch (_) {
+      return const [];
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final statsAsync = ref.watch(seasonStatsProvider);
     final playersAsync = ref.watch(playersProvider);
+    final selectedTeam = ref.watch(selectedTeamProvider);
+    final sport = selectedTeam?.sport ?? 'volleyball';
+    final columns = _columnsForSport(sport);
+
+    // Default to first column if none selected or selection doesn't match
+    if (_selectedStatKey == null ||
+        !columns.any((c) => c.key == _selectedStatKey)) {
+      _selectedStatKey = columns.isNotEmpty ? columns.first.key : null;
+    }
 
     return Scaffold(
       appBar: AppBar(title: const Text('Leaderboard')),
       body: Column(
         children: [
-          // Filter chips
+          // Filter chips from plugin columns
           SizedBox(
             height: 48,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: _statCategories.length,
+              itemCount: columns.length,
               separatorBuilder: (_, __) => const SizedBox(width: 8),
               itemBuilder: (context, index) {
-                final cat = _statCategories[index];
+                final col = columns[index];
                 return FilterChip(
-                  label: Text(cat),
-                  selected: cat == _selectedStat,
-                  onSelected: (_) => setState(() => _selectedStat = cat),
+                  label: Text(col.shortLabel),
+                  selected: col.key == _selectedStatKey,
+                  onSelected: (_) =>
+                      setState(() => _selectedStatKey = col.key),
                 );
               },
             ),
@@ -58,12 +69,16 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
           Expanded(
             child: statsAsync.when(
               data: (stats) {
-                if (stats.isEmpty) {
+                if (stats.isEmpty || _selectedStatKey == null) {
                   return const Center(child: Text('No stats available yet'));
                 }
 
+                final col = columns.firstWhere(
+                  (c) => c.key == _selectedStatKey,
+                  orElse: () => columns.first,
+                );
                 final players = playersAsync.valueOrNull ?? [];
-                final ranked = _buildRankedList(stats, players);
+                final ranked = _buildRankedList(stats, players, col);
 
                 return ListView.builder(
                   itemCount: ranked.length,
@@ -91,6 +106,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
   List<_RankedEntry> _buildRankedList(
     List<PlayerSeasonStatsModel> stats,
     List<dynamic> players,
+    StatColumn column,
   ) {
     String getPlayerName(String playerId) {
       final p = players.where((p) => p.id == playerId);
@@ -105,46 +121,11 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
     final entries = stats.map((s) {
       final totals = s.statsTotals;
       final metrics = s.computedMetrics;
-      final bs = (totals['blockSolos'] ?? 0) as num;
-      final ba = (totals['blockAssists'] ?? 0) as num;
 
-      final double rawValue;
-      final String formatted;
-
-      switch (_selectedStat) {
-        case 'Kills':
-          rawValue = ((totals['kills'] ?? 0) as num).toDouble();
-          formatted = rawValue.toStringAsFixed(0);
-        case 'Hitting %':
-          rawValue = ((metrics['hittingPercentage'] ?? 0.0) as num).toDouble();
-          final ta = (totals['totalAttempts'] ?? 0) as num;
-          if (ta == 0) {
-            formatted = '---';
-          } else {
-            final millis = (rawValue * 1000).round();
-            final neg = millis < 0;
-            formatted =
-                '${neg ? "-" : ""}.${millis.abs().toString().padLeft(3, '0')}';
-          }
-        case 'Aces':
-          rawValue = ((totals['serviceAces'] ?? 0) as num).toDouble();
-          formatted = rawValue.toStringAsFixed(0);
-        case 'Digs':
-          rawValue = ((totals['digs'] ?? 0) as num).toDouble();
-          formatted = rawValue.toStringAsFixed(0);
-        case 'Blocks':
-          rawValue = (bs + ba).toDouble();
-          formatted = rawValue.toStringAsFixed(0);
-        case 'Points':
-          rawValue = ((totals['points'] ?? 0) as num).toDouble();
-          formatted = rawValue.toStringAsFixed(0);
-        case 'Assists':
-          rawValue = ((totals['assists'] ?? 0) as num).toDouble();
-          formatted = rawValue.toStringAsFixed(0);
-        default:
-          rawValue = 0;
-          formatted = '0';
-      }
+      // Look up value from totals first, then computed metrics
+      final raw = totals[column.key] ?? metrics[column.key] ?? 0;
+      final double rawValue = (raw is num) ? raw.toDouble() : 0.0;
+      final formatted = _formatValue(rawValue, column.format, totals);
 
       return _RankedEntry(
         playerName: getPlayerName(s.playerId),
@@ -156,6 +137,25 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
 
     entries.sort((a, b) => b.rawValue.compareTo(a.rawValue));
     return entries;
+  }
+
+  static String _formatValue(
+      double value, String? format, Map<String, dynamic> totals) {
+    switch (format) {
+      case 'decimal3':
+        // Hitting percentage style: .350 format
+        final millis = (value * 1000).round();
+        final neg = millis < 0;
+        return '${neg ? "-" : ""}.${millis.abs().toString().padLeft(3, '0')}';
+      case 'decimal2':
+        return value.toStringAsFixed(2);
+      case 'percentage':
+        return '${(value * 100).toStringAsFixed(1)}%';
+      case 'int':
+        return value.toStringAsFixed(0);
+      default:
+        return value.toStringAsFixed(0);
+    }
   }
 }
 

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/colors.dart';
+import '../../../../domain/sports/sport_plugin.dart';
+import '../../../../domain/stats/stat_calculator.dart';
 
-/// Action button data.
+/// Action button data derived from [EventType].
 class ActionDef {
   final String label;
   final String category;
@@ -20,61 +22,64 @@ class ActionDef {
     this.tone = ActionTone.neutral,
     this.scoreChange = 0,
   });
+
+  /// Build an [ActionDef] from a plugin [EventType].
+  factory ActionDef.fromEventType(EventType et) {
+    final ActionTone tone;
+    final int scoreChange;
+    switch (et.defaultResult) {
+      case 'point_us':
+        tone = ActionTone.positive;
+        scoreChange = 1;
+        break;
+      case 'point_them':
+        tone = ActionTone.negative;
+        scoreChange = -1;
+        break;
+      default:
+        tone = ActionTone.neutral;
+        scoreChange = 0;
+    }
+    return ActionDef(
+      label: et.displayLabel,
+      category: et.category,
+      type: et.id,
+      result: et.defaultResult,
+      icon: et.icon ?? Icons.radio_button_unchecked,
+      tone: tone,
+      scoreChange: scoreChange,
+    );
+  }
 }
 
 enum ActionTone { positive, negative, neutral }
 
 /// Action palette shown when a player is selected.
+///
+/// Reads event definitions from the [SportPlugin] for the given [sport],
+/// so new sports get their own palette automatically.
 class ActionPalette extends StatelessWidget {
   final String entryMode;
+  final String sport;
   final void Function(String category, String type, String result, int scoreChange) onAction;
 
   const ActionPalette({
     super.key,
     required this.entryMode,
+    required this.sport,
     required this.onAction,
   });
 
-  static const _quickActions = [
-    ActionDef(label: 'Kill', category: 'attack', type: 'kill', result: 'kill', icon: Icons.flash_on, tone: ActionTone.positive, scoreChange: 1),
-    ActionDef(label: 'Error', category: 'attack', type: 'attack_error', result: 'error', icon: Icons.error_outline, tone: ActionTone.negative, scoreChange: -1),
-    ActionDef(label: 'Dig', category: 'defense', type: 'dig', result: 'success', icon: Icons.sports, tone: ActionTone.neutral),
-    ActionDef(label: 'Assist', category: 'setting', type: 'set_assist', result: 'success', icon: Icons.handshake, tone: ActionTone.positive),
-    ActionDef(label: 'Block', category: 'block', type: 'block_solo', result: 'solo', icon: Icons.front_hand, tone: ActionTone.positive, scoreChange: 1),
-    ActionDef(label: 'Ace', category: 'serve', type: 'ace', result: 'ace', icon: Icons.star, tone: ActionTone.positive, scoreChange: 1),
-    ActionDef(label: 'Srv Err', category: 'serve', type: 'serve_error', result: 'error', icon: Icons.close, tone: ActionTone.negative, scoreChange: -1),
-    ActionDef(label: 'Opp Err', category: 'opponent', type: 'opp_error', result: 'error', icon: Icons.celebration, tone: ActionTone.positive, scoreChange: 1),
-  ];
+  SportPlugin get _plugin => StatCalculator.getSportPlugin(sport);
 
-  static const _detailedExtraActions = [
-    ActionDef(label: 'Atk Blk', category: 'attack', type: 'blocked', result: 'blocked', icon: Icons.block, tone: ActionTone.negative, scoreChange: -1),
-    ActionDef(label: '0 Atk', category: 'attack', type: 'zero_attack', result: 'zero', icon: Icons.exposure_zero, tone: ActionTone.neutral),
-    ActionDef(label: 'Blk Ast', category: 'block', type: 'block_assist', result: 'assist', icon: Icons.people, tone: ActionTone.positive, scoreChange: 1),
-    ActionDef(label: 'Blk Err', category: 'block', type: 'block_error', result: 'error', icon: Icons.warning, tone: ActionTone.negative, scoreChange: -1),
-    ActionDef(label: 'Pass 3', category: 'reception', type: 'pass_3', result: '3', icon: Icons.looks_3, tone: ActionTone.positive),
-    ActionDef(label: 'Pass 2', category: 'reception', type: 'pass_2', result: '2', icon: Icons.looks_two, tone: ActionTone.neutral),
-    ActionDef(label: 'Pass 1', category: 'reception', type: 'pass_1', result: '1', icon: Icons.looks_one, tone: ActionTone.neutral),
-    ActionDef(label: 'Shank', category: 'reception', type: 'pass_0', result: '0', icon: Icons.exposure_zero, tone: ActionTone.negative),
-    ActionDef(label: 'Overpass', category: 'reception', type: 'overpass', result: '0', icon: Icons.arrow_upward, tone: ActionTone.negative),
-    ActionDef(label: 'Dig Err', category: 'defense', type: 'dig_error', result: 'error', icon: Icons.do_not_disturb, tone: ActionTone.negative),
-    ActionDef(label: 'Srv In', category: 'serve', type: 'serve_in_play', result: 'in_play', icon: Icons.check, tone: ActionTone.neutral),
-    ActionDef(label: 'Set Err', category: 'setting', type: 'set_error', result: 'error', icon: Icons.cancel, tone: ActionTone.negative),
-    ActionDef(label: 'Rec Err', category: 'reception', type: 'pass_error', result: 'error', icon: Icons.error, tone: ActionTone.negative, scoreChange: -1),
-  ];
+  List<ActionDef> get _quickActions {
+    return _plugin.quickModeEvents
+        .expand((c) => c.eventTypes)
+        .map(ActionDef.fromEventType)
+        .toList();
+  }
 
-  // Category grouping for detailed mode, keyed by display label.
-  static const _categoryOrder = ['ATTACK', 'SERVE', 'BLOCK', 'DIG/PASS', 'SET', 'OPP'];
-
-  static const _actionToCategory = <String, String>{
-    'Kill': 'ATTACK', 'Error': 'ATTACK', 'Atk Blk': 'ATTACK', '0 Atk': 'ATTACK',
-    'Ace': 'SERVE', 'Srv Err': 'SERVE', 'Srv In': 'SERVE',
-    'Block': 'BLOCK', 'Blk Ast': 'BLOCK', 'Blk Err': 'BLOCK',
-    'Dig': 'DIG/PASS', 'Dig Err': 'DIG/PASS', 'Pass 3': 'DIG/PASS',
-    'Pass 2': 'DIG/PASS', 'Pass 1': 'DIG/PASS', 'Shank': 'DIG/PASS',
-    'Overpass': 'DIG/PASS', 'Rec Err': 'DIG/PASS',
-    'Assist': 'SET', 'Set Err': 'SET',
-    'Opp Err': 'OPP',
-  };
+  List<EventCategory> get _detailedCategories => _plugin.eventCategories;
 
   @override
   Widget build(BuildContext context) {
@@ -85,6 +90,7 @@ class ActionPalette extends StatelessWidget {
   }
 
   Widget _buildQuickGrid() {
+    final actions = _quickActions;
     return Container(
       decoration: const BoxDecoration(
         color: Color(0xFF1A1A1A),
@@ -100,9 +106,9 @@ class ActionPalette extends StatelessWidget {
           crossAxisSpacing: 6,
           mainAxisSpacing: 6,
         ),
-        itemCount: _quickActions.length,
+        itemCount: actions.length,
         itemBuilder: (context, index) {
-          final action = _quickActions[index];
+          final action = actions[index];
           return _ActionButton(
             action: action,
             onTap: () => onAction(
@@ -114,16 +120,6 @@ class ActionPalette extends StatelessWidget {
   }
 
   Widget _buildDetailedGrouped() {
-    final allActions = [..._quickActions, ..._detailedExtraActions];
-    final grouped = <String, List<ActionDef>>{};
-    for (final cat in _categoryOrder) {
-      grouped[cat] = [];
-    }
-    for (final action in allActions) {
-      final cat = _actionToCategory[action.label] ?? 'OPP';
-      grouped[cat]!.add(action);
-    }
-
     return Container(
       decoration: const BoxDecoration(
         color: Color(0xFF1A1A1A),
@@ -135,12 +131,12 @@ class ActionPalette extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            for (final cat in _categoryOrder)
-              if (grouped[cat]!.isNotEmpty) ...[
+            for (final category in _detailedCategories)
+              if (category.eventTypes.isNotEmpty) ...[
                 Padding(
                   padding: const EdgeInsets.only(left: 2, top: 4, bottom: 2),
                   child: Text(
-                    cat,
+                    category.label.toUpperCase(),
                     style: const TextStyle(
                       fontSize: 10,
                       color: Colors.grey,
@@ -152,7 +148,8 @@ class ActionPalette extends StatelessWidget {
                 Wrap(
                   spacing: 6,
                   runSpacing: 6,
-                  children: grouped[cat]!.map((action) {
+                  children: category.eventTypes.map((et) {
+                    final action = ActionDef.fromEventType(et);
                     return SizedBox(
                       width: 80,
                       height: 50,

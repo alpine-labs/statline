@@ -7,6 +7,8 @@ import '../../providers/team_providers.dart';
 import '../../widgets/export_button.dart';
 import '../../../domain/models/player.dart';
 import '../../../domain/models/player_stats.dart';
+import '../../../domain/sports/sport_plugin.dart';
+import '../../../domain/stats/stat_calculator.dart';
 import '../../../export/csv_exporter.dart';
 import '../../../export/share_service.dart';
 import '../../../export/stats_email_formatter.dart';
@@ -22,17 +24,72 @@ class SeasonStatsScreen extends ConsumerStatefulWidget {
 
 class _SeasonStatsScreenState extends ConsumerState<SeasonStatsScreen> {
   String _activeFilter = 'All';
-  String _sortColumn = 'kills';
+  String? _sortColumn;
   bool _sortAscending = false;
   final Set<String> _selectedPlayerIds = {};
 
-  static const _filters = ['All', 'Hitting', 'Serving', 'Defense', 'Blocking', 'Passing'];
+  String _effectiveSortColumn(SportPlugin? plugin) {
+    if (_sortColumn != null) return _sortColumn!;
+    if (plugin != null && plugin.seasonStatsColumns.isNotEmpty) {
+      return plugin.seasonStatsColumns.first.key;
+    }
+    return 'kills'; // fallback
+  }
+
+  SportPlugin? _pluginForSport(String? sport) {
+    if (sport == null) return null;
+    try {
+      return StatCalculator.getSportPlugin(sport);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  List<String> _filtersForPlugin(SportPlugin? plugin) {
+    if (plugin == null) return const ['All'];
+    return ['All', ...plugin.statFilterCategories.keys];
+  }
+
+  List<StatsColumnDef> _columnsForFilter(String filter, SportPlugin? plugin) {
+    const playerCol =
+        StatsColumnDef(key: 'player', label: 'Player', isNumeric: false);
+    const gpCol = StatsColumnDef(key: 'gp', label: 'GP');
+
+    if (plugin == null) return [playerCol, gpCol];
+
+    if (filter != 'All') {
+      final keys = plugin.statFilterCategories[filter];
+      if (keys != null) {
+        return [
+          playerCol,
+          gpCol,
+          ...keys.map((k) {
+            final col = plugin.seasonStatsColumns
+                .where((c) => c.key == k);
+            final label = col.isNotEmpty ? col.first.shortLabel : k;
+            return StatsColumnDef(key: k, label: label);
+          }),
+        ];
+      }
+    }
+
+    // 'All' filter: use all season stat columns
+    return [
+      playerCol,
+      gpCol,
+      ...plugin.seasonStatsColumns
+          .map((c) => StatsColumnDef(key: c.key, label: c.shortLabel)),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
     final statsAsync = ref.watch(seasonStatsProvider);
     final playersAsync = ref.watch(playersProvider);
     final selectedTeam = ref.watch(selectedTeamProvider);
+    final sport = selectedTeam?.sport;
+    final plugin = _pluginForSport(sport);
+    final filters = _filtersForPlugin(plugin);
 
     return Scaffold(
       appBar: AppBar(
@@ -75,10 +132,10 @@ class _SeasonStatsScreenState extends ConsumerState<SeasonStatsScreen> {
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: _filters.length,
+              itemCount: filters.length,
               separatorBuilder: (_, __) => const SizedBox(width: 8),
               itemBuilder: (context, index) {
-                final filter = _filters[index];
+                final filter = filters[index];
                 final isActive = filter == _activeFilter;
                 return FilterChip(
                   label: Text(filter),
@@ -135,13 +192,13 @@ class _SeasonStatsScreenState extends ConsumerState<SeasonStatsScreen> {
                 }
 
                 final players = playersAsync.valueOrNull ?? [];
-                final columns = _columnsForFilter(_activeFilter);
+                final columns = _columnsForFilter(_activeFilter, plugin);
                 final rows = _buildRows(stats, players, columns);
 
                 return StatsTable(
                   columns: columns,
                   rows: rows,
-                  sortColumnKey: _sortColumn,
+                  sortColumnKey: _effectiveSortColumn(plugin),
                   sortAscending: _sortAscending,
                   selectedPlayerIds: _selectedPlayerIds,
                   onSort: (key, ascending) {
@@ -191,70 +248,6 @@ class _SeasonStatsScreenState extends ConsumerState<SeasonStatsScreen> {
     );
   }
 
-  List<StatsColumnDef> _columnsForFilter(String filter) {
-    const playerCol =
-        StatsColumnDef(key: 'player', label: 'Player', isNumeric: false);
-    const gpCol = StatsColumnDef(key: 'gp', label: 'GP');
-
-    return switch (filter) {
-      'Hitting' => [
-          playerCol,
-          gpCol,
-          const StatsColumnDef(key: 'kills', label: 'K'),
-          const StatsColumnDef(key: 'errors', label: 'E'),
-          const StatsColumnDef(key: 'totalAttempts', label: 'TA'),
-          const StatsColumnDef(key: 'hittingPercentage', label: 'Hit%'),
-        ],
-      'Serving' => [
-          playerCol,
-          gpCol,
-          const StatsColumnDef(key: 'serviceAces', label: 'SA'),
-          const StatsColumnDef(key: 'serviceErrors', label: 'SE'),
-          const StatsColumnDef(key: 'serveEfficiency', label: 'SrEff'),
-        ],
-      'Defense' => [
-          playerCol,
-          gpCol,
-          const StatsColumnDef(key: 'digs', label: 'D'),
-          const StatsColumnDef(key: 'receptionErrors', label: 'RE'),
-          const StatsColumnDef(key: 'perfectPassPct', label: 'PP%'),
-        ],
-      'Blocking' => [
-          playerCol,
-          gpCol,
-          const StatsColumnDef(key: 'blockSolos', label: 'BS'),
-          const StatsColumnDef(key: 'blockAssists', label: 'BA'),
-          const StatsColumnDef(key: 'totalBlocks', label: 'TB'),
-        ],
-      'Passing' => [
-          playerCol,
-          gpCol,
-          const StatsColumnDef(key: 'passAttempts', label: 'Rec'),
-          const StatsColumnDef(key: 'passRating', label: 'PR'),
-          const StatsColumnDef(key: 'perfectPassPct', label: 'PP%'),
-          const StatsColumnDef(key: 'receptionErrors', label: 'RE'),
-          const StatsColumnDef(key: 'overpasses', label: 'OP'),
-        ],
-      _ => [
-          playerCol,
-          gpCol,
-          const StatsColumnDef(key: 'kills', label: 'K'),
-          const StatsColumnDef(key: 'errors', label: 'E'),
-          const StatsColumnDef(key: 'totalAttempts', label: 'TA'),
-          const StatsColumnDef(key: 'hittingPercentage', label: 'Hit%'),
-          const StatsColumnDef(key: 'assists', label: 'A'),
-          const StatsColumnDef(key: 'serviceAces', label: 'SA'),
-          const StatsColumnDef(key: 'serviceErrors', label: 'SE'),
-          const StatsColumnDef(key: 'digs', label: 'D'),
-          const StatsColumnDef(key: 'blockSolos', label: 'BS'),
-          const StatsColumnDef(key: 'blockAssists', label: 'BA'),
-          const StatsColumnDef(key: 'totalBlocks', label: 'TB'),
-          const StatsColumnDef(key: 'perfectPassPct', label: 'PP%'),
-          const StatsColumnDef(key: 'serveEfficiency', label: 'SrEff'),
-          const StatsColumnDef(key: 'points', label: 'Pts'),
-        ],
-    };
-  }
 
   List<StatsRowData> _buildRows(
     List<PlayerSeasonStatsModel> stats,
@@ -266,44 +259,38 @@ class _SeasonStatsScreenState extends ConsumerState<SeasonStatsScreen> {
       return p.isNotEmpty ? p.first.shortName : playerId;
     }
 
+    final sortKey = _effectiveSortColumn(
+        _pluginForSport(ref.read(selectedTeamProvider)?.sport));
+
     final rows = stats.map((s) {
       final totals = s.statsTotals;
       final metrics = s.computedMetrics;
-      final bs = (totals['blockSolos'] ?? 0) as num;
-      final ba = (totals['blockAssists'] ?? 0) as num;
 
       final values = <String, dynamic>{
         'player': getPlayerName(s.playerId),
         'playerId': s.playerId,
         'gp': s.gamesPlayed,
-        'kills': totals['kills'] ?? 0,
-        'errors': totals['errors'] ?? 0,
-        'totalAttempts': totals['totalAttempts'] ?? 0,
-        'hittingPercentage': metrics['hittingPercentage'] ?? 0.0,
-        'assists': totals['assists'] ?? 0,
-        'serviceAces': totals['serviceAces'] ?? 0,
-        'serviceErrors': totals['serviceErrors'] ?? 0,
-        'digs': totals['digs'] ?? 0,
-        'blockSolos': bs,
-        'blockAssists': ba,
-        'totalBlocks': bs + ba,
-        'receptionErrors': totals['receptionErrors'] ?? 0,
-        'passAttempts': totals['passAttempts'] ?? 0,
-        'passRating': metrics['pass_rating_avg'] ?? 0.0,
-        'overpasses': totals['overpasses'] ?? 0,
-        'serveAttempts': totals['serveAttempts'] ?? 0,
-        'perfectPassPct': metrics['perfectPassPct'] ?? 0.0,
-        'serveEfficiency': metrics['serveEfficiency'] ?? 0.0,
-        'points': totals['points'] ?? 0,
       };
+
+      // Populate all column keys from totals and metrics
+      for (final col in columns) {
+        if (values.containsKey(col.key)) continue;
+        if (metrics.containsKey(col.key)) {
+          values[col.key] = metrics[col.key];
+        } else if (totals.containsKey(col.key)) {
+          values[col.key] = totals[col.key] ?? 0;
+        } else {
+          values[col.key] = 0;
+        }
+      }
 
       return StatsRowData(playerId: s.playerId, values: values);
     }).toList();
 
     // Sort
     rows.sort((a, b) {
-      final aVal = a.values[_sortColumn];
-      final bVal = b.values[_sortColumn];
+      final aVal = a.values[sortKey];
+      final bVal = b.values[sortKey];
       if (aVal is num && bVal is num) {
         return _sortAscending
             ? aVal.compareTo(bVal)
@@ -440,10 +427,12 @@ class _SeasonStatsScreenState extends ConsumerState<SeasonStatsScreen> {
       return;
     }
 
+    final sport = ref.read(selectedTeamProvider)?.sport ?? 'volleyball';
+
     final body = StatsEmailFormatter.formatPlayerStats(
       playerStats.first,
       player.firstName,
-      'volleyball',
+      sport,
     );
 
     final uri = Uri(
@@ -469,6 +458,7 @@ class _SeasonStatsScreenState extends ConsumerState<SeasonStatsScreen> {
     List<Player> players,
     List<PlayerSeasonStatsModel> allStats,
   ) async {
+    final sport = ref.read(selectedTeamProvider)?.sport ?? 'volleyball';
     var sent = 0;
     var skipped = 0;
     for (final player in players) {
@@ -482,7 +472,7 @@ class _SeasonStatsScreenState extends ConsumerState<SeasonStatsScreen> {
       final body = StatsEmailFormatter.formatPlayerStats(
         playerStats.first,
         player.firstName,
-        'volleyball',
+        sport,
       );
 
       final uri = Uri(
@@ -540,9 +530,10 @@ class _SeasonStatsScreenState extends ConsumerState<SeasonStatsScreen> {
         playerNames[p.id] = p.shortName;
       }
 
+      final sport = ref.read(selectedTeamProvider)?.sport ?? 'volleyball';
       final csv = CsvExporter.exportSeasonStats(
         stats,
-        'volleyball',
+        sport,
         playerNames: playerNames,
       );
       await shareCsvContent(csv, 'season_stats.csv');

@@ -302,13 +302,11 @@ class LiveGameNotifier extends StateNotifier<LiveGameState> {
   void recordSubstitution() {
     if (_engine == null) return;
     if (!_engine!.canSubstitute(state.sportState)) return;
-    // Volleyball-specific: delegate to engine if available
-    if (_engine is dynamic && _engine != null) {
-      try {
-        final newState = (_engine as dynamic).recordSubstitution(state.sportState) as Map<String, dynamic>;
-        state = state.copyWith(sportState: newState);
-        return;
-      } catch (_) {}
+    try {
+      final newState = (_engine as dynamic).recordSubstitution(state.sportState) as Map<String, dynamic>;
+      state = state.copyWith(sportState: newState);
+    } catch (_) {
+      // Engine doesn't support recordSubstitution — no-op
     }
   }
 

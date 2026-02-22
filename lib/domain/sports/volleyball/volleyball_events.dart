@@ -19,6 +19,7 @@ class VolleyballEvents {
   static const attackError = EventType(
     id: 'attack_error',
     label: 'Attack Error',
+    shortLabel: 'Error',
     category: 'attack',
     defaultResult: 'point_them',
     availableInQuickMode: true,
@@ -28,6 +29,7 @@ class VolleyballEvents {
   static const blocked = EventType(
     id: 'blocked',
     label: 'Blocked',
+    shortLabel: 'Atk Blk',
     category: 'attack',
     defaultResult: 'point_them',
   );
@@ -35,6 +37,7 @@ class VolleyballEvents {
   static const zeroAttack = EventType(
     id: 'zero_attack',
     label: 'Zero Attack',
+    shortLabel: '0 Atk',
     category: 'attack',
     defaultResult: 'rally_continues',
   );
@@ -52,6 +55,7 @@ class VolleyballEvents {
   static const serveError = EventType(
     id: 'serve_error',
     label: 'Serve Error',
+    shortLabel: 'Srv Err',
     category: 'serve',
     defaultResult: 'point_them',
     availableInQuickMode: true,
@@ -61,6 +65,7 @@ class VolleyballEvents {
   static const serveInPlay = EventType(
     id: 'serve_in_play',
     label: 'Serve In Play',
+    shortLabel: 'Srv In',
     category: 'serve',
     defaultResult: 'rally_continues',
   );
@@ -69,6 +74,7 @@ class VolleyballEvents {
   static const blockSolo = EventType(
     id: 'block_solo',
     label: 'Block Solo',
+    shortLabel: 'Block',
     category: 'block',
     defaultResult: 'point_us',
     availableInQuickMode: true,
@@ -78,6 +84,7 @@ class VolleyballEvents {
   static const blockAssist = EventType(
     id: 'block_assist',
     label: 'Block Assist',
+    shortLabel: 'Blk Ast',
     category: 'block',
     defaultResult: 'point_us',
   );
@@ -85,6 +92,7 @@ class VolleyballEvents {
   static const blockError = EventType(
     id: 'block_error',
     label: 'Block Error',
+    shortLabel: 'Blk Err',
     category: 'block',
     defaultResult: 'point_them',
   );
@@ -102,6 +110,7 @@ class VolleyballEvents {
   static const digError = EventType(
     id: 'dig_error',
     label: 'Dig Error',
+    shortLabel: 'Dig Err',
     category: 'dig',
     defaultResult: 'point_them',
   );
@@ -110,6 +119,7 @@ class VolleyballEvents {
   static const passQuality3 = EventType(
     id: 'pass_3',
     label: 'Pass - 3 (Perfect)',
+    shortLabel: 'Pass 3',
     category: 'pass',
     defaultResult: 'rally_continues',
   );
@@ -117,6 +127,7 @@ class VolleyballEvents {
   static const passQuality2 = EventType(
     id: 'pass_2',
     label: 'Pass - 2 (Good)',
+    shortLabel: 'Pass 2',
     category: 'pass',
     defaultResult: 'rally_continues',
   );
@@ -124,6 +135,7 @@ class VolleyballEvents {
   static const passQuality1 = EventType(
     id: 'pass_1',
     label: 'Pass - 1 (Playable)',
+    shortLabel: 'Pass 1',
     category: 'pass',
     defaultResult: 'rally_continues',
   );
@@ -131,6 +143,7 @@ class VolleyballEvents {
   static const passQuality0 = EventType(
     id: 'pass_0',
     label: 'Pass - 0 (Shank)',
+    shortLabel: 'Shank',
     category: 'pass',
     defaultResult: 'rally_continues',
   );
@@ -145,6 +158,7 @@ class VolleyballEvents {
   static const passError = EventType(
     id: 'pass_error',
     label: 'Pass Error',
+    shortLabel: 'Rec Err',
     category: 'pass',
     defaultResult: 'point_them',
   );
@@ -153,6 +167,7 @@ class VolleyballEvents {
   static const setAssist = EventType(
     id: 'set_assist',
     label: 'Assist',
+    shortLabel: 'Assist',
     category: 'set',
     defaultResult: 'rally_continues',
     availableInQuickMode: true,
@@ -162,6 +177,7 @@ class VolleyballEvents {
   static const setError = EventType(
     id: 'set_error',
     label: 'Set Error',
+    shortLabel: 'Set Err',
     category: 'set',
     defaultResult: 'point_them',
   );
@@ -177,6 +193,7 @@ class VolleyballEvents {
   static const oppError = EventType(
     id: 'opp_error',
     label: 'Opp Error',
+    shortLabel: 'Opp Err',
     category: 'opponent',
     defaultResult: 'point_us',
     availableInQuickMode: true,
@@ -186,6 +203,7 @@ class VolleyballEvents {
   static const oppAttempt = EventType(
     id: 'opp_attempt',
     label: 'Opp Attempt',
+    shortLabel: 'Opp Atk',
     category: 'opponent',
     defaultResult: 'rally_continues',
   );

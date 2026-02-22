@@ -4,10 +4,23 @@ import '../../../../domain/models/game_period.dart';
 import '../../../../core/theme/colors.dart';
 import '../../../../core/theme/typography.dart';
 
+/// A labeled value to display in the scoreboard's secondary row.
+class ScoreboardMetric {
+  final String label;
+  final String value;
+  final Color? color;
+
+  const ScoreboardMetric({
+    required this.label,
+    required this.value,
+    this.color,
+  });
+}
+
 /// Compact scoreboard widget — 2-row layout optimized for mobile screen space.
 ///
 /// Row 1: Timeout dots | Team name + score | dash | Opponent + score | Timeout dots
-/// Row 2: Set history | sub count | side-out %
+/// Row 2: Set/period history | sport-specific secondary metrics
 class ScoreboardWidget extends StatelessWidget {
   final String teamName;
   final String opponentName;
@@ -21,11 +34,8 @@ class ScoreboardWidget extends StatelessWidget {
   final VoidCallback? onTimeoutThem;
   final VoidCallback? onUndoTimeoutUs;
   final VoidCallback? onUndoTimeoutThem;
-  final int subsThisSet;
-  final int maxSubsPerSet;
-  final int firstBallSideouts;
-  final int totalSideouts;
-  final int sideoutOpportunities;
+  /// Sport-specific metrics displayed in the secondary row.
+  final List<ScoreboardMetric> secondaryMetrics;
 
   const ScoreboardWidget({
     super.key,
@@ -41,11 +51,7 @@ class ScoreboardWidget extends StatelessWidget {
     this.onTimeoutThem,
     this.onUndoTimeoutUs,
     this.onUndoTimeoutThem,
-    this.subsThisSet = 0,
-    this.maxSubsPerSet = 15,
-    this.firstBallSideouts = 0,
-    this.totalSideouts = 0,
-    this.sideoutOpportunities = 0,
+    this.secondaryMetrics = const [],
   });
 
   @override
@@ -145,11 +151,11 @@ class ScoreboardWidget extends StatelessWidget {
 
           const SizedBox(height: 4),
 
-          // Row 2: Set history + subs + side-out stats
+          // Row 2: Period history + sport-specific secondary metrics
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Set history
+              // Period history
               if (periods.length > 1 ||
                   (periods.isNotEmpty && periods.first.scoreUs > 0))
                 for (int i = 0; i < periods.length; i++) ...[
@@ -174,45 +180,21 @@ class ScoreboardWidget extends StatelessWidget {
                     ),
                   ),
                 ],
-              // Compact sub count (always show to indicate max)
-              Text(
-                '  S:$subsThisSet/$maxSubsPerSet',
-                style: TextStyle(
-                  color: _subsColor,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              // Side-out %
-              if (sideoutOpportunities > 0) ...[
+              // Sport-specific secondary metrics
+              for (final metric in secondaryMetrics)
                 Text(
-                  '  SO:${(totalSideouts / sideoutOpportunities * 100).toStringAsFixed(0)}%',
+                  '  ${metric.label}:${metric.value}',
                   style: TextStyle(
-                    color: Colors.white.withAlpha(153),
+                    color: metric.color ?? Colors.white.withAlpha(153),
                     fontSize: 11,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
-                if (totalSideouts > 0)
-                  Text(
-                    ' 1st:${(firstBallSideouts / totalSideouts * 100).toStringAsFixed(0)}%',
-                    style: TextStyle(
-                      color: Colors.white.withAlpha(102),
-                      fontSize: 11,
-                    ),
-                  ),
-              ],
             ],
           ),
         ],
       ),
     );
-  }
-
-  Color get _subsColor {
-    if (subsThisSet >= maxSubsPerSet) return Colors.red;
-    if (subsThisSet > maxSubsPerSet * 0.8) return Colors.yellow;
-    return Colors.white.withAlpha(128);
   }
 
   /// Timeout button: tappable "TO 0/2" text. Tap to record, long-press to undo.

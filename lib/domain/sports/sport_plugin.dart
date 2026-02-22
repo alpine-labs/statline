@@ -31,6 +31,21 @@ abstract class SportPlugin {
   List<StatColumn> get gameStatsColumns;
   List<StatColumn> get seasonStatsColumns;
 
+  /// Filter categories for stats screens, e.g. {'Hitting': ['kills','errors','totalAttempts','hittingPercentage']}.
+  /// 'All' is always prepended automatically.
+  Map<String, List<String>> get statFilterCategories => const {};
+
+  /// Key stats shown as cards on the player overview. Default: first 8 seasonStatsColumns.
+  List<StatColumn> get playerOverviewStats =>
+      seasonStatsColumns.take(8).toList();
+
+  /// Columns shown in the player game log. Default: first 7 gameStatsColumns.
+  List<StatColumn> get gameLogColumns =>
+      gameStatsColumns.where((c) => c.key != 'games_played').take(7).toList();
+
+  /// Chart definitions for the player trend tab.
+  List<TrendChart> get trendCharts => const [];
+
   // Game state
   bool isGameOver(
       List<GamePeriod> periods, Map<String, dynamic> gameFormat);
@@ -99,6 +114,7 @@ class EventCategory {
 class EventType {
   final String id;
   final String label;
+  final String? shortLabel;
   final String category;
   final String defaultResult;
   final bool availableInQuickMode;
@@ -107,11 +123,15 @@ class EventType {
   const EventType({
     required this.id,
     required this.label,
+    this.shortLabel,
     required this.category,
     this.defaultResult = 'rally_continues',
     this.availableInQuickMode = false,
     this.icon,
   });
+
+  /// Display label for compact UIs (buttons, chips).
+  String get displayLabel => shortLabel ?? label;
 }
 
 class StatColumn {
@@ -125,5 +145,17 @@ class StatColumn {
     required this.label,
     required this.shortLabel,
     this.format,
+  });
+}
+
+class TrendChart {
+  final String title;
+  final String statKey;
+  final bool isBar;
+
+  const TrendChart({
+    required this.title,
+    required this.statKey,
+    this.isBar = false,
   });
 }

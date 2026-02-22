@@ -94,6 +94,45 @@ class VolleyballPlugin extends SportPlugin {
     return enriched;
   }
 
+  // ── Stat filter categories ────────────────────────────────────────────
+  @override
+  Map<String, List<String>> get statFilterCategories => const {
+    'Hitting': ['kills', 'errors', 'totalAttempts', 'hittingPercentage'],
+    'Serving': ['serviceAces', 'serviceErrors', 'serveEfficiency'],
+    'Defense': ['digs', 'receptionErrors', 'perfectPassPct'],
+    'Blocking': ['blockSolos', 'blockAssists', 'totalBlocks'],
+    'Passing': ['passAttempts', 'passRating', 'perfectPassPct', 'receptionErrors', 'overpasses'],
+  };
+
+  // ── Player detail overrides ─────────────────────────────────────────
+  @override
+  List<StatColumn> get playerOverviewStats => const [
+    StatColumn(key: 'kills', label: 'Kills', shortLabel: 'K', format: 'int'),
+    StatColumn(key: 'hittingPercentage', label: 'Hit%', shortLabel: 'Hit%', format: 'decimal3'),
+    StatColumn(key: 'assists', label: 'Assists', shortLabel: 'A', format: 'int'),
+    StatColumn(key: 'serviceAces', label: 'Aces', shortLabel: 'SA', format: 'int'),
+    StatColumn(key: 'digs', label: 'Digs', shortLabel: 'D', format: 'int'),
+    StatColumn(key: 'totalBlocks', label: 'Blocks', shortLabel: 'TB', format: 'int'),
+    StatColumn(key: 'points', label: 'Points', shortLabel: 'Pts', format: 'int'),
+  ];
+
+  @override
+  List<StatColumn> get gameLogColumns => const [
+    StatColumn(key: 'kills', label: 'Kills', shortLabel: 'K', format: 'int'),
+    StatColumn(key: 'errors', label: 'Errors', shortLabel: 'E', format: 'int'),
+    StatColumn(key: 'totalAttempts', label: 'Total Attacks', shortLabel: 'TA', format: 'int'),
+    StatColumn(key: 'hittingPercentage', label: 'Hitting %', shortLabel: 'Hit%', format: 'decimal3'),
+    StatColumn(key: 'assists', label: 'Assists', shortLabel: 'A', format: 'int'),
+    StatColumn(key: 'serviceAces', label: 'Service Aces', shortLabel: 'SA', format: 'int'),
+    StatColumn(key: 'digs', label: 'Digs', shortLabel: 'D', format: 'int'),
+  ];
+
+  @override
+  List<TrendChart> get trendCharts => const [
+    TrendChart(title: 'Hitting % Over Games', statKey: 'hittingPercentage'),
+    TrendChart(title: 'Kills Per Game', statKey: 'kills', isBar: true),
+  ];
+
   // ── Table column definitions ───────────────────────────────────────────
   @override
   List<StatColumn> get gameStatsColumns => const [

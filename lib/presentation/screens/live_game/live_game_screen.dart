@@ -12,7 +12,7 @@ import '../../../domain/models/game_lineup.dart';
 import '../../../domain/models/player.dart';
 import '../../../domain/models/play_event.dart';
 import '../../../domain/models/roster_entry.dart';
-import '../../../domain/sports/volleyball/volleyball_stats.dart';
+import '../../../domain/stats/stat_calculator.dart';
 import '../../../core/constants/sport_config.dart';
 import '../../../core/theme/app_theme.dart';
 import 'widgets/scoreboard_widget.dart';
@@ -53,6 +53,9 @@ class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
     if (!liveState.isActive) {
       return _buildStartGameView(context);
     }
+
+    final currentSport = liveState.game?.sport ?? 'volleyball';
+    final isVolleyball = currentSport == 'volleyball';
 
     return Theme(
       data: StatLineTheme.gameMode(),
@@ -127,14 +130,15 @@ class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
                       value: 'next_set',
                       child: Text('Next Set'),
                     ),
-                    PopupMenuItem(
-                      value: 'libero_toggle',
-                      child: Text(
-                        liveState.liberoIsIn
-                            ? 'Libero Out'
-                            : 'Libero In',
+                    if (isVolleyball)
+                      PopupMenuItem(
+                        value: 'libero_toggle',
+                        child: Text(
+                          liveState.liberoIsIn
+                              ? 'Libero Out'
+                              : 'Libero In',
+                        ),
                       ),
-                    ),
                     const PopupMenuItem(
                       value: 'end_game',
                       child: Text('End Game'),
@@ -168,17 +172,15 @@ class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
                   onUndoTimeoutThem: () => ref
                       .read(liveGameStateProvider.notifier)
                       .undoTimeout(false),
-                  subsThisSet: liveState.subsThisSet,
-                  maxSubsPerSet: liveState.maxSubsPerSet,
-                  firstBallSideouts: liveState.firstBallSideouts,
-                  totalSideouts: liveState.totalSideouts,
-                  sideoutOpportunities: liveState.sideoutOpportunities,
+                  secondaryMetrics:
+                      _buildSecondaryMetrics(liveState),
                 ),
                 const Divider(height: 1, color: Color(0xFF333333)),
 
-                // Court lineup panel (replaces RotationIndicator + PlayerGrid)
+                // Court lineup panel / sport-specific field view
                 Expanded(
-                  child: CourtLineupPanel(
+                  child: (liveState.game?.sport ?? 'volleyball') == 'volleyball'
+                    ? CourtLineupPanel(
                         currentRotation: liveState.currentRotation ?? 1,
                         lineup: liveState.lineup,
                         roster: liveState.roster,
@@ -219,13 +221,15 @@ class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
                               .read(liveGameStateProvider.notifier)
                               .liberoOut();
                         },
-                      ),
+                      )
+                    : _buildGenericPlayerList(context, ref, liveState),
                     ),
 
                     // Action palette (visible when player selected)
                     if (liveState.selectedPlayerId != null)
                       ActionPalette(
                         entryMode: liveState.entryMode,
+                        sport: liveState.game?.sport ?? 'volleyball',
                         onAction: (category, type, result, scoreChange) {
                           _recordAction(
                             context,
@@ -258,7 +262,7 @@ class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
-                Icons.sports_volleyball,
+                _sportIcon(selectedTeam?.sport),
                 size: 80,
                 color: Theme.of(context).colorScheme.primary.withAlpha(128),
               ),
@@ -542,11 +546,13 @@ class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
   }
 
   Map<String, Map<String, dynamic>> _computeAllPlayerStats(LiveGameState liveState) {
+    final sport = liveState.game?.sport ?? 'volleyball';
     final result = <String, Map<String, dynamic>>{};
     for (final player in liveState.roster) {
-      result[player.id] = VolleyballStats.aggregateFromEvents(
+      result[player.id] = StatCalculator.computePlayerGameStats(
+        sport,
         liveState.playEvents,
-        playerId: player.id,
+        player.id,
       );
     }
     return result;
@@ -671,5 +677,98 @@ class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
         ],
       ),
     );
+  }
+
+  /// Generic player list for non-volleyball sports (fallback field view).
+  Widget _buildGenericPlayerList(
+    BuildContext context,
+    WidgetRef ref,
+    LiveGameState liveState,
+  ) {
+    final roster = liveState.roster;
+    if (roster.isEmpty) {
+      return const Center(child: Text('No players on roster'));
+    }
+    return ListView.builder(
+      itemCount: roster.length,
+      itemBuilder: (context, index) {
+        final player = roster[index];
+        final isSelected = player.id == liveState.selectedPlayerId;
+        return ListTile(
+          leading: CircleAvatar(
+            backgroundColor: isSelected
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context).colorScheme.surfaceContainerHighest,
+            child: Text(
+              '#${player.jerseyNumber}',
+              style: TextStyle(
+                color: isSelected
+                    ? Theme.of(context).colorScheme.onPrimary
+                    : Theme.of(context).colorScheme.onSurface,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          title: Text(player.displayName),
+          selected: isSelected,
+          onTap: () {
+            ref.read(liveGameStateProvider.notifier).selectPlayer(player.id);
+          },
+        );
+      },
+    );
+  }
+
+  static IconData _sportIcon(String? sport) {
+    if (sport == null) return Icons.sports;
+    try {
+      final plugin = StatCalculator.getSportPlugin(sport);
+      return plugin.icon;
+    } catch (_) {
+      return Icons.sports;
+    }
+  }
+
+  /// Builds sport-specific secondary metrics for the scoreboard
+  /// by reading from the sport state map.
+  List<ScoreboardMetric> _buildSecondaryMetrics(LiveGameState liveState) {
+    final sport = liveState.game?.sport;
+    if (sport == 'volleyball') {
+      return _buildVolleyballMetrics(liveState);
+    }
+    return const [];
+  }
+
+  static List<ScoreboardMetric> _buildVolleyballMetrics(LiveGameState state) {
+    final metrics = <ScoreboardMetric>[];
+    final subs = state.subsThisSet;
+    final maxSubs = state.maxSubsPerSet;
+    Color subsColor;
+    if (subs >= maxSubs) {
+      subsColor = Colors.red;
+    } else if (subs > maxSubs * 0.8) {
+      subsColor = Colors.yellow;
+    } else {
+      subsColor = Colors.white.withAlpha(128);
+    }
+    metrics.add(ScoreboardMetric(
+        label: 'S', value: '$subs/$maxSubs', color: subsColor));
+
+    final soOpps = state.sideoutOpportunities;
+    if (soOpps > 0) {
+      final totalSO = state.totalSideouts;
+      final pct = (totalSO / soOpps * 100).toStringAsFixed(0);
+      metrics.add(ScoreboardMetric(label: 'SO', value: '$pct%'));
+      if (totalSO > 0) {
+        final fbPct =
+            (state.firstBallSideouts / totalSO * 100).toStringAsFixed(0);
+        metrics.add(ScoreboardMetric(
+          label: '1st',
+          value: '$fbPct%',
+          color: Colors.white.withAlpha(102),
+        ));
+      }
+    }
+    return metrics;
   }
 }

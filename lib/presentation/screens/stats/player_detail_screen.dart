@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/stats_providers.dart';
 import '../../providers/team_providers.dart';
 import '../../widgets/stat_card.dart';
+import '../../../domain/sports/sport_plugin.dart';
+import '../../../domain/stats/stat_calculator.dart';
 import '../../../export/csv_exporter.dart';
 import '../../../export/share_service.dart';
 import '../../../domain/models/player_stats.dart';
@@ -17,6 +19,19 @@ class PlayerDetailScreen extends ConsumerWidget {
 
   const PlayerDetailScreen({super.key, required this.playerId});
 
+  SportPlugin? _pluginForRef(WidgetRef ref) {
+    final sport = ref.watch(selectedTeamProvider)?.sport;
+    if (sport == null) return null;
+    try {
+      return StatCalculator.getSportPlugin(sport);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _sportForRef(WidgetRef ref) =>
+      ref.read(selectedTeamProvider)?.sport ?? 'volleyball';
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final stats = ref.watch(playerDetailProvider(playerId));
@@ -25,6 +40,7 @@ class PlayerDetailScreen extends ConsumerWidget {
         ?.where((p) => p.id == playerId)
         .firstOrNull;
     final activeSeason = ref.watch(activeSeasonProvider);
+    final plugin = _pluginForRef(ref);
 
     // Fetch game log when we have an active season
     final gameLogAsync = activeSeason != null
@@ -41,7 +57,6 @@ class PlayerDetailScreen extends ConsumerWidget {
 
     final totals = stats.statsTotals;
     final metrics = stats.computedMetrics;
-    final hitPct = (metrics['hittingPercentage'] ?? 0.0) as double;
 
     return DefaultTabController(
       length: 3,
@@ -88,9 +103,9 @@ class PlayerDetailScreen extends ConsumerWidget {
         ),
         body: TabBarView(
           children: [
-            _buildOverview(context, stats, totals, hitPct),
-            _buildGameLog(context, gameLogAsync),
-            _buildCharts(context, gameLogAsync),
+            _buildOverview(context, stats, totals, metrics, plugin),
+            _buildGameLog(context, gameLogAsync, plugin),
+            _buildCharts(context, gameLogAsync, plugin),
           ],
         ),
       ),
@@ -129,7 +144,7 @@ class PlayerDetailScreen extends ConsumerWidget {
                 subtitle: const Text('Export season totals as CSV'),
                 onTap: () {
                   Navigator.pop(ctx);
-                  _shareSeasonSummary(context, playerName, stats);
+                  _shareSeasonSummary(context, ref, playerName, stats);
                 },
               ),
               ListTile(
@@ -140,7 +155,7 @@ class PlayerDetailScreen extends ConsumerWidget {
                 onTap: () {
                   Navigator.pop(ctx);
                   final games = gameLogAsync.valueOrNull ?? [];
-                  _shareGameLog(context, playerName, games);
+                  _shareGameLog(context, ref, playerName, games);
                 },
               ),
               const SizedBox(height: 8),
@@ -153,13 +168,15 @@ class PlayerDetailScreen extends ConsumerWidget {
 
   void _shareSeasonSummary(
     BuildContext context,
+    WidgetRef ref,
     String playerName,
     PlayerSeasonStatsModel stats,
   ) async {
     try {
+      final sport = _sportForRef(ref);
       final csv = CsvExporter.exportSeasonStats(
         [stats],
-        'volleyball',
+        sport,
         playerNames: {stats.playerId: playerName},
       );
       final fileName =
@@ -176,10 +193,12 @@ class PlayerDetailScreen extends ConsumerWidget {
 
   void _shareGameLog(
     BuildContext context,
+    WidgetRef ref,
     String playerName,
     List<Map<String, dynamic>> games,
   ) async {
     try {
+      final sport = _sportForRef(ref);
       final gameStats = games.map((row) {
         final raw = row['stats'];
         Map<String, dynamic> s;
@@ -194,7 +213,7 @@ class PlayerDetailScreen extends ConsumerWidget {
           id: row['id'] as String? ?? '',
           gameId: row['game_id'] as String? ?? '',
           playerId: playerId,
-          sport: 'volleyball',
+          sport: sport,
           stats: s,
           computedAt: DateTime.now(),
         );
@@ -203,7 +222,7 @@ class PlayerDetailScreen extends ConsumerWidget {
       final csv = CsvExporter.exportPlayerGameLog(
         gameStats,
         playerName,
-        'volleyball',
+        sport,
       );
       final fileName =
           '${playerName.replaceAll(' ', '_')}_game_log.csv';
@@ -217,12 +236,44 @@ class PlayerDetailScreen extends ConsumerWidget {
     }
   }
 
+  String _formatStatValue(dynamic value, String? format) {
+    if (value == null) return '0';
+    switch (format) {
+      case 'decimal3':
+        final v = (value as num).toDouble();
+        if (v == 0) return '---';
+        final millis = (v * 1000).round();
+        final neg = millis < 0;
+        return '${neg ? "-" : ""}.${millis.abs().toString().padLeft(3, '0')}';
+      case 'decimal2':
+        return (value as num).toStringAsFixed(2);
+      case 'percentage':
+        return '${((value as num) * 100).toStringAsFixed(1)}%';
+      default:
+        return '$value';
+    }
+  }
+
+  dynamic _lookupStat(String key, Map<String, dynamic> totals, Map<String, dynamic> metrics) {
+    if (metrics.containsKey(key)) return metrics[key];
+    if (totals.containsKey(key)) return totals[key];
+    // Computed totalBlocks
+    if (key == 'totalBlocks') {
+      return ((totals['blockSolos'] ?? 0) as num) + ((totals['blockAssists'] ?? 0) as num);
+    }
+    return 0;
+  }
+
   Widget _buildOverview(
     BuildContext context,
     dynamic stats,
     Map<String, dynamic> totals,
-    double hitPct,
+    Map<String, dynamic> metrics,
+    SportPlugin? plugin,
   ) {
+    final overviewStats = plugin?.playerOverviewStats ?? [];
+    final filterCats = plugin?.statFilterCategories ?? {};
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -247,41 +298,12 @@ class PlayerDetailScreen extends ConsumerWidget {
                       value: '${stats.gamesPlayed}',
                       width: 80,
                     ),
-                    StatCard(
-                      label: 'Kills',
-                      value: '${totals['kills'] ?? 0}',
+                    ...overviewStats.map((col) => StatCard(
+                      label: col.label,
+                      value: _formatStatValue(
+                          _lookupStat(col.key, totals, metrics), col.format),
                       width: 80,
-                    ),
-                    StatCard(
-                      label: 'Hit%',
-                      value: (totals['totalAttempts'] as num?) == 0 ? '---' : '.${(hitPct * 1000).round().toString().padLeft(3, '0')}',
-                      width: 80,
-                    ),
-                    StatCard(
-                      label: 'Assists',
-                      value: '${totals['assists'] ?? 0}',
-                      width: 80,
-                    ),
-                    StatCard(
-                      label: 'Aces',
-                      value: '${totals['serviceAces'] ?? 0}',
-                      width: 80,
-                    ),
-                    StatCard(
-                      label: 'Digs',
-                      value: '${totals['digs'] ?? 0}',
-                      width: 80,
-                    ),
-                    StatCard(
-                      label: 'Blocks',
-                      value: '${((totals['blockSolos'] ?? 0) as num) + ((totals['blockAssists'] ?? 0) as num)}',
-                      width: 80,
-                    ),
-                    StatCard(
-                      label: 'Points',
-                      value: '${totals['points'] ?? 0}',
-                      width: 80,
-                    ),
+                    )),
                   ],
                 ),
               ],
@@ -290,50 +312,41 @@ class PlayerDetailScreen extends ConsumerWidget {
         ),
         const SizedBox(height: 16),
 
-        // Hitting breakdown
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Hitting Breakdown',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 12),
-                _statRow(context, 'Kills', '${totals['kills'] ?? 0}'),
-                _statRow(context, 'Errors', '${totals['errors'] ?? 0}'),
-                _statRow(
-                    context, 'Total Attempts', '${totals['totalAttempts'] ?? 0}'),
-                _statRow(context, 'Hitting %',
-                    (totals['totalAttempts'] as num?) == 0 ? '---' : '.${(hitPct * 1000).round().toString().padLeft(3, '0')}'),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
+        // Category breakdown cards from plugin
+        ...filterCats.entries.map((entry) {
+          final catName = entry.key;
+          final catKeys = entry.value;
+          // Find matching StatColumns from seasonStatsColumns
+          final columns = plugin?.seasonStatsColumns
+              .where((c) => catKeys.contains(c.key))
+              .toList() ?? [];
+          if (columns.isEmpty) return const SizedBox.shrink();
 
-        // Serving breakdown
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Serving',
-                  style: Theme.of(context).textTheme.titleMedium,
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      catName,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 12),
+                    ...columns.map((col) => _statRow(
+                      context,
+                      col.label,
+                      _formatStatValue(
+                          _lookupStat(col.key, totals, metrics), col.format),
+                    )),
+                  ],
                 ),
-                const SizedBox(height: 12),
-                _statRow(
-                    context, 'Service Aces', '${totals['serviceAces'] ?? 0}'),
-                _statRow(context, 'Service Errors',
-                    '${totals['serviceErrors'] ?? 0}'),
-              ],
+              ),
             ),
-          ),
-        ),
+          );
+        }),
       ],
     );
   }
@@ -364,18 +377,13 @@ class PlayerDetailScreen extends ConsumerWidget {
     return {};
   }
 
-  String _formatHitPct(Map<String, dynamic> s) {
-    final ta = (s['attack_attempts'] ?? s['totalAttempts'] ?? 0) as num;
-    if (ta == 0) return '---';
-    final pct = (s['hitting_pct'] ?? s['hittingPercentage'] ??
-        (((s['kills'] ?? 0) as num) - ((s['attack_errors'] ?? s['errors'] ?? 0) as num)) / ta) as num;
-    final millis = (pct * 1000).round();
-    final neg = millis < 0;
-    return '${neg ? "-" : ""}.${millis.abs().toString().padLeft(3, '0')}';
-  }
-
   Widget _buildGameLog(
-      BuildContext context, AsyncValue<List<Map<String, dynamic>>> gameLogAsync) {
+      BuildContext context,
+      AsyncValue<List<Map<String, dynamic>>> gameLogAsync,
+      SportPlugin? plugin,
+  ) {
+    final logColumns = plugin?.gameLogColumns ?? [];
+
     return gameLogAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(child: Text('Error loading game log: $e')),
@@ -395,15 +403,12 @@ class PlayerDetailScreen extends ConsumerWidget {
           child: SingleChildScrollView(
             child: DataTable(
               columnSpacing: 20,
-              columns: const [
-                DataColumn(label: Text('Game')),
-                DataColumn(label: Text('K'), numeric: true),
-                DataColumn(label: Text('E'), numeric: true),
-                DataColumn(label: Text('TA'), numeric: true),
-                DataColumn(label: Text('Hit%')),
-                DataColumn(label: Text('A'), numeric: true),
-                DataColumn(label: Text('SA'), numeric: true),
-                DataColumn(label: Text('D'), numeric: true),
+              columns: [
+                const DataColumn(label: Text('Game')),
+                ...logColumns.map((c) => DataColumn(
+                  label: Text(c.shortLabel),
+                  numeric: c.format != 'decimal3',
+                )),
               ],
               rows: games.map((row) {
                 final s = _parseStats(row);
@@ -412,13 +417,10 @@ class PlayerDetailScreen extends ConsumerWidget {
                 return DataRow(
                   cells: [
                     DataCell(Text(opponent)),
-                    DataCell(Text('${s['kills'] ?? 0}')),
-                    DataCell(Text('${s['attack_errors'] ?? s['errors'] ?? 0}')),
-                    DataCell(Text('${s['attack_attempts'] ?? s['totalAttempts'] ?? 0}')),
-                    DataCell(Text(_formatHitPct(s))),
-                    DataCell(Text('${s['assists'] ?? 0}')),
-                    DataCell(Text('${s['aces'] ?? s['serviceAces'] ?? 0}')),
-                    DataCell(Text('${s['digs'] ?? 0}')),
+                    ...logColumns.map((c) {
+                      final val = s[c.key] ?? s[_altKey(c.key)] ?? 0;
+                      return DataCell(Text(_formatStatValue(val, c.format)));
+                    }),
                   ],
                   onSelectChanged: rowGameId != null
                       ? (_) {
@@ -440,8 +442,25 @@ class PlayerDetailScreen extends ConsumerWidget {
     );
   }
 
+  /// Map season-stat keys to game-stat alternate keys used in computed stats
+  String _altKey(String key) => switch (key) {
+    'errors' => 'attack_errors',
+    'totalAttempts' => 'attack_attempts',
+    'serviceAces' => 'aces',
+    'hittingPercentage' => 'hitting_pct',
+    _ => key,
+  };
+
   Widget _buildCharts(
-      BuildContext context, AsyncValue<List<Map<String, dynamic>>> gameLogAsync) {
+      BuildContext context,
+      AsyncValue<List<Map<String, dynamic>>> gameLogAsync,
+      SportPlugin? plugin,
+  ) {
+    final charts = plugin?.trendCharts ?? [];
+    if (charts.isEmpty) {
+      return const Center(child: Text('No chart definitions for this sport.'));
+    }
+
     return gameLogAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(child: Text('Error loading chart data: $e')),
@@ -456,43 +475,38 @@ class PlayerDetailScreen extends ConsumerWidget {
           );
         }
 
-        final gameLabels = <String>[];
-        final killsData = <double>[];
-        final hitPctData = <double>[];
-
-        for (final row in games) {
-          final s = _parseStats(row);
+        final gameLabels = games.map((row) {
           final opponent = row['opponent_name'] as String? ?? '?';
-          // Shorten label: first 6 chars
-          gameLabels.add(opponent.length > 6 ? opponent.substring(0, 6) : opponent);
-          killsData.add(((s['kills'] ?? 0) as num).toDouble());
-          final ta = (s['attack_attempts'] ?? s['totalAttempts'] ?? 0) as num;
-          if (ta == 0) {
-            hitPctData.add(0.0);
-          } else {
-            final pct = s['hitting_pct'] ?? s['hittingPercentage'] ??
-                (((s['kills'] ?? 0) as num) - ((s['attack_errors'] ?? s['errors'] ?? 0) as num)) / ta;
-            hitPctData.add((pct as num).toDouble());
-          }
-        }
+          return opponent.length > 6 ? opponent.substring(0, 6) : opponent;
+        }).toList();
 
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            LineChartWidget(
-              title: 'Hitting % Over Games',
-              xLabels: gameLabels,
-              dataPoints: hitPctData,
-            ),
-            const SizedBox(height: 24),
-            BarChartWidget(
-              title: 'Kills Per Game',
-              labels: gameLabels,
-              values: killsData,
-            ),
+            for (int i = 0; i < charts.length; i++) ...[
+              if (i > 0) const SizedBox(height: 24),
+              _buildTrendChart(charts[i], games, gameLabels),
+            ],
           ],
         );
       },
     );
+  }
+
+  Widget _buildTrendChart(
+    TrendChart chart,
+    List<Map<String, dynamic>> games,
+    List<String> labels,
+  ) {
+    final data = games.map((row) {
+      final s = _parseStats(row);
+      final val = s[chart.statKey] ?? s[_altKey(chart.statKey)] ?? 0;
+      return (val as num).toDouble();
+    }).toList();
+
+    if (chart.isBar) {
+      return BarChartWidget(title: chart.title, labels: labels, values: data);
+    }
+    return LineChartWidget(title: chart.title, xLabels: labels, dataPoints: data);
   }
 }
