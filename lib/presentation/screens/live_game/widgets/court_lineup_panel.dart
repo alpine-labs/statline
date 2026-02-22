@@ -487,7 +487,6 @@ class CourtLineupPanel extends StatelessWidget {
       color: bgColor,
       borderRadius: BorderRadius.circular(6),
       child: InkWell(
-        onTap: () => onPlayerSelected(player.id),
         onLongPress: () => _showBenchPlayerMenu(context, player),
         borderRadius: BorderRadius.circular(6),
         child: Stack(
