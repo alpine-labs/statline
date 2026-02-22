@@ -2,7 +2,6 @@ import '../models/play_event.dart';
 import '../models/player_stats.dart';
 import '../sports/sport_plugin.dart';
 import '../sports/volleyball/volleyball_plugin.dart';
-import '../sports/volleyball/volleyball_stats.dart';
 
 /// Generic stat calculation engine that delegates to sport-specific plugins.
 class StatCalculator {
@@ -80,14 +79,8 @@ class StatCalculator {
     final computedMetrics =
         plugin.computeSeasonMetrics(totals, gamesPlayed, totalSets);
 
-    // Recalculate hittingPercentage from season totals
-    if (sport == 'volleyball') {
-      totals['hittingPercentage'] = VolleyballStats.computeHittingPercentage(
-        (totals['kills'] as num?)?.toInt() ?? 0,
-        (totals['errors'] as num?)?.toInt() ?? 0,
-        (totals['totalAttempts'] as num?)?.toInt() ?? 0,
-      );
-    }
+    // Let the plugin enrich totals with sport-specific derived values
+    final enrichedTotals = plugin.enrichSeasonTotals(totals);
 
     return PlayerSeasonStatsModel(
       id: id,
@@ -95,7 +88,7 @@ class StatCalculator {
       playerId: playerId,
       sport: sport,
       gamesPlayed: gamesPlayed,
-      statsTotals: totals,
+      statsTotals: enrichedTotals,
       statsAverages: averages,
       computedMetrics: computedMetrics,
       computedAt: DateTime.now(),

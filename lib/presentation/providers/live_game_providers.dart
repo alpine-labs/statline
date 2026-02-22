@@ -4,6 +4,8 @@ import '../../domain/models/game_lineup.dart';
 import '../../domain/models/game_period.dart';
 import '../../domain/models/play_event.dart';
 import '../../domain/models/player.dart';
+import '../../domain/sports/sport_game_engine.dart';
+import '../../domain/sports/sport_engine_registry.dart';
 
 // ── LiveGameState ────────────────────────────────────────────────────────────
 
@@ -15,25 +17,14 @@ class LiveGameState {
   final int scoreUs;
   final int scoreThem;
   final String entryMode; // 'quick' or 'detailed'
-  final int? currentRotation; // volleyball: 1-6
   final List<PlayEvent> undoStack;
   final List<Player> roster;
   final String? selectedPlayerId;
   final int timeoutsUs;
   final int timeoutsThem;
-  final int maxTimeoutsPerSet;
-  final int subsThisSet;
-  final int maxSubsPerSet;
-  final String? liberoPlayerId;
-  final bool liberoIsIn;
-  final String? liberoReplacedPlayerId;
-  final String? servingTeam; // 'us' or 'them'
-  final int firstBallSideouts;
-  final int totalSideouts;
-  final int sideoutOpportunities;
-  final bool inFirstBallSequence;
-  final int attacksSinceReception;
   final List<GameLineup> lineup;
+  /// Sport-specific state managed by [SportGameEngine].
+  final Map<String, dynamic> sportState;
 
   const LiveGameState({
     this.game,
@@ -43,30 +34,48 @@ class LiveGameState {
     this.scoreUs = 0,
     this.scoreThem = 0,
     this.entryMode = 'quick',
-    this.currentRotation,
     this.undoStack = const [],
     this.roster = const [],
     this.selectedPlayerId,
     this.timeoutsUs = 0,
     this.timeoutsThem = 0,
-    this.maxTimeoutsPerSet = 2,
-    this.subsThisSet = 0,
-    this.maxSubsPerSet = 15,
-    this.liberoPlayerId,
-    this.liberoIsIn = false,
-    this.liberoReplacedPlayerId,
-    this.servingTeam,
-    this.firstBallSideouts = 0,
-    this.totalSideouts = 0,
-    this.sideoutOpportunities = 0,
-    this.inFirstBallSequence = false,
-    this.attacksSinceReception = 0,
     this.lineup = const [],
+    this.sportState = const {},
   });
 
   factory LiveGameState.initial() => const LiveGameState();
 
   bool get isActive => game != null && game!.status == GameStatus.inProgress;
+
+  // ── Convenience getters for volleyball sport state (backward compat) ──
+  int? get currentRotation => sportState['currentRotation'] as int?;
+  String? get servingTeam => sportState['servingTeam'] as String?;
+  String? get liberoPlayerId => sportState['liberoPlayerId'] as String?;
+  bool get liberoIsIn => sportState['liberoIsIn'] as bool? ?? false;
+  String? get liberoReplacedPlayerId =>
+      sportState['liberoReplacedPlayerId'] as String?;
+  int get firstBallSideouts =>
+      sportState['firstBallSideouts'] as int? ?? 0;
+  int get totalSideouts => sportState['totalSideouts'] as int? ?? 0;
+  int get sideoutOpportunities =>
+      sportState['sideoutOpportunities'] as int? ?? 0;
+  bool get inFirstBallSequence =>
+      sportState['inFirstBallSequence'] as bool? ?? false;
+  int get attacksSinceReception =>
+      sportState['attacksSinceReception'] as int? ?? 0;
+  int get subsThisSet => sportState['subsThisSet'] as int? ?? 0;
+  int get maxSubsPerSet => sportState['maxSubsPerSet'] as int? ?? 15;
+  int get maxTimeoutsPerSet {
+    if (_engine != null) return _engine!.maxTimeoutsPerPeriod;
+    return 2;
+  }
+
+  // Engine reference for computed properties (not serialized)
+  SportGameEngine? get _engine {
+    final sport = game?.sport;
+    if (sport == null) return null;
+    return SportEngineRegistry.tryGetEngine(sport);
+  }
 
   LiveGameState copyWith({
     Game? Function()? game,
@@ -76,25 +85,13 @@ class LiveGameState {
     int? scoreUs,
     int? scoreThem,
     String? entryMode,
-    int? Function()? currentRotation,
     List<PlayEvent>? undoStack,
     List<Player>? roster,
     String? Function()? selectedPlayerId,
     int? timeoutsUs,
     int? timeoutsThem,
-    int? maxTimeoutsPerSet,
-    int? subsThisSet,
-    int? maxSubsPerSet,
-    String? Function()? liberoPlayerId,
-    bool? liberoIsIn,
-    String? Function()? liberoReplacedPlayerId,
-    String? Function()? servingTeam,
-    int? firstBallSideouts,
-    int? totalSideouts,
-    int? sideoutOpportunities,
-    bool? inFirstBallSequence,
-    int? attacksSinceReception,
     List<GameLineup>? lineup,
+    Map<String, dynamic>? sportState,
   }) {
     return LiveGameState(
       game: game != null ? game() : this.game,
@@ -105,31 +102,14 @@ class LiveGameState {
       scoreUs: scoreUs ?? this.scoreUs,
       scoreThem: scoreThem ?? this.scoreThem,
       entryMode: entryMode ?? this.entryMode,
-      currentRotation:
-          currentRotation != null ? currentRotation() : this.currentRotation,
       undoStack: undoStack ?? this.undoStack,
       roster: roster ?? this.roster,
       selectedPlayerId:
           selectedPlayerId != null ? selectedPlayerId() : this.selectedPlayerId,
       timeoutsUs: timeoutsUs ?? this.timeoutsUs,
       timeoutsThem: timeoutsThem ?? this.timeoutsThem,
-      maxTimeoutsPerSet: maxTimeoutsPerSet ?? this.maxTimeoutsPerSet,
-      subsThisSet: subsThisSet ?? this.subsThisSet,
-      maxSubsPerSet: maxSubsPerSet ?? this.maxSubsPerSet,
-      liberoPlayerId:
-          liberoPlayerId != null ? liberoPlayerId() : this.liberoPlayerId,
-      liberoIsIn: liberoIsIn ?? this.liberoIsIn,
-      liberoReplacedPlayerId: liberoReplacedPlayerId != null
-          ? liberoReplacedPlayerId()
-          : this.liberoReplacedPlayerId,
-      servingTeam:
-          servingTeam != null ? servingTeam() : this.servingTeam,
-      firstBallSideouts: firstBallSideouts ?? this.firstBallSideouts,
-      totalSideouts: totalSideouts ?? this.totalSideouts,
-      sideoutOpportunities: sideoutOpportunities ?? this.sideoutOpportunities,
-      inFirstBallSequence: inFirstBallSequence ?? this.inFirstBallSequence,
-      attacksSinceReception: attacksSinceReception ?? this.attacksSinceReception,
       lineup: lineup ?? this.lineup,
+      sportState: sportState ?? this.sportState,
     );
   }
 }
@@ -139,13 +119,27 @@ class LiveGameState {
 class LiveGameNotifier extends StateNotifier<LiveGameState> {
   LiveGameNotifier() : super(LiveGameState.initial());
 
-  void startGame(Game game, List<Player> roster, {int? maxSubsPerSet, List<GameLineup>? lineup}) {
+  SportGameEngine? _engine;
+
+  void startGame(Game game, List<Player> roster,
+      {int? maxSubsPerSet, List<GameLineup>? lineup}) {
+    _engine = SportEngineRegistry.getEngine(game.sport);
+
     final firstPeriod = GamePeriod(
       id: 'period_1',
       gameId: game.id,
       periodNumber: 1,
-      periodType: 'set',
+      periodType: _engine!.periodType,
     );
+
+    var sportState = _engine!.initialState(
+      game: game,
+      lineup: lineup ?? const [],
+    );
+    if (maxSubsPerSet != null) {
+      sportState = Map<String, dynamic>.from(sportState);
+      sportState['maxSubsPerSet'] = maxSubsPerSet;
+    }
 
     state = state.copyWith(
       game: () => game.copyWith(status: GameStatus.inProgress),
@@ -156,19 +150,11 @@ class LiveGameNotifier extends StateNotifier<LiveGameState> {
       scoreUs: 0,
       scoreThem: 0,
       undoStack: [],
-      currentRotation: () => 1,
       selectedPlayerId: () => null,
       timeoutsUs: 0,
       timeoutsThem: 0,
-      subsThisSet: 0,
-      maxSubsPerSet: maxSubsPerSet,
-      servingTeam: () => 'us',
-      firstBallSideouts: 0,
-      totalSideouts: 0,
-      sideoutOpportunities: 0,
-      inFirstBallSequence: false,
-      attacksSinceReception: 0,
       lineup: lineup ?? const [],
+      sportState: sportState,
     );
   }
 
@@ -177,7 +163,9 @@ class LiveGameNotifier extends StateNotifier<LiveGameState> {
   }
 
   void recordEvent(PlayEvent event) {
-    // Enrich event with current rotation and serving team metadata
+    if (_engine == null) return;
+
+    // Enrich event with sport-specific metadata
     final metadata = {
       ...event.metadata,
       if (state.currentRotation != null) 'rotation': state.currentRotation,
@@ -185,62 +173,27 @@ class LiveGameNotifier extends StateNotifier<LiveGameState> {
     };
     final enrichedEvent = event.copyWith(metadata: metadata);
 
-    // ── First-ball sideout tracking ──
-    bool newInFirstBall = state.inFirstBallSequence;
-    int newAttacks = state.attacksSinceReception;
-    int newFirstBallSideouts = state.firstBallSideouts;
-    int newTotalSideouts = state.totalSideouts;
-    int newSideoutOpps = state.sideoutOpportunities;
+    final prevScoreUs = state.scoreUs;
+    final prevScoreThem = state.scoreThem;
 
-    if (_isReceptionEvent(enrichedEvent.eventType)) {
-      newInFirstBall = true;
-      newAttacks = 0;
-    }
-    if (_isAttackEvent(enrichedEvent.eventType)) {
-      newAttacks++;
-    }
-    // Dig breaks first-ball sequence (extended rally)
-    if (enrichedEvent.eventType == 'dig' ||
-        enrichedEvent.eventType == 'dig_error') {
-      newInFirstBall = false;
-    }
-
-    // ── Score changes, serving team toggle, auto-rotate ──
-    String? newServingTeam = state.servingTeam;
-    int? newRotation = state.currentRotation;
-    final scoredUs = enrichedEvent.scoreUsAfter > state.scoreUs;
-    final scoredThem = enrichedEvent.scoreThemAfter > state.scoreThem;
-
-    // Sideout opportunity: any point while opponent serves
-    if (state.servingTeam == 'them' && (scoredUs || scoredThem)) {
-      newSideoutOpps++;
-    }
-
-    if (scoredUs && state.servingTeam == 'them') {
-      // Side-out for us: we get serve, advance rotation
-      newServingTeam = 'us';
-      newTotalSideouts++;
-      if (newInFirstBall && newAttacks == 1) {
-        newFirstBallSideouts++;
-      }
-      if (newRotation != null) {
-        newRotation = (newRotation % 6) + 1;
-      }
-    } else if (scoredThem && state.servingTeam == 'us') {
-      // Side-out for them
-      newServingTeam = 'them';
-    }
-
-    // Reset first-ball tracking on any point
-    if (scoredUs || scoredThem) {
-      newInFirstBall = false;
-      newAttacks = 0;
-    }
+    // Delegate sport-specific state update to the engine
+    final newSportState = _engine!.onEventRecorded(
+      event: enrichedEvent,
+      sportState: state.sportState,
+      scoreUs: enrichedEvent.scoreUsAfter,
+      scoreThem: enrichedEvent.scoreThemAfter,
+      prevScoreUs: prevScoreUs,
+      prevScoreThem: prevScoreThem,
+      lineup: state.lineup,
+    );
 
     // Auto-select server when we gain serve via sideout
     String? newSelectedPlayer;
-    if (scoredUs && state.servingTeam == 'them') {
-      newSelectedPlayer = _getServerPlayerId(newRotation);
+    final scoredUs = enrichedEvent.scoreUsAfter > prevScoreUs;
+    final prevServing = state.servingTeam;
+    if (scoredUs && prevServing == 'them') {
+      newSelectedPlayer =
+          _engine!.getActivePlayerId(newSportState, state.lineup);
     }
 
     state = state.copyWith(
@@ -249,13 +202,7 @@ class LiveGameNotifier extends StateNotifier<LiveGameState> {
       scoreUs: enrichedEvent.scoreUsAfter,
       scoreThem: enrichedEvent.scoreThemAfter,
       selectedPlayerId: () => newSelectedPlayer,
-      servingTeam: () => newServingTeam,
-      currentRotation: () => newRotation,
-      firstBallSideouts: newFirstBallSideouts,
-      totalSideouts: newTotalSideouts,
-      sideoutOpportunities: newSideoutOpps,
-      inFirstBallSequence: newInFirstBall,
-      attacksSinceReception: newAttacks,
+      sportState: newSportState,
     );
 
     // Update current period score
@@ -305,18 +252,20 @@ class LiveGameNotifier extends StateNotifier<LiveGameState> {
   }
 
   void advancePeriod() {
-    if (state.game == null) return;
+    if (state.game == null || _engine == null) return;
 
     final nextNumber = state.periods.length + 1;
     final newPeriod = GamePeriod(
       id: 'period_$nextNumber',
       gameId: state.game!.id,
       periodNumber: nextNumber,
-      periodType: 'set',
+      periodType: _engine!.periodType,
     );
 
-    // Alternate serve at the start of each new set
-    final newServing = state.servingTeam == 'us' ? 'them' : 'us';
+    final newSportState = _engine!.onPeriodAdvanced(
+      newPeriodNumber: nextNumber,
+      sportState: state.sportState,
+    );
 
     state = state.copyWith(
       periods: [...state.periods, newPeriod],
@@ -325,19 +274,17 @@ class LiveGameNotifier extends StateNotifier<LiveGameState> {
       scoreThem: 0,
       timeoutsUs: 0,
       timeoutsThem: 0,
-      subsThisSet: 0,
-      servingTeam: () => newServing,
-      inFirstBallSequence: false,
-      attacksSinceReception: 0,
+      sportState: newSportState,
     );
   }
 
   void callTimeout(bool isUs) {
+    final maxTimeouts = _engine?.maxTimeoutsPerPeriod ?? 2;
     if (isUs) {
-      if (state.timeoutsUs >= state.maxTimeoutsPerSet) return;
+      if (state.timeoutsUs >= maxTimeouts) return;
       state = state.copyWith(timeoutsUs: state.timeoutsUs + 1);
     } else {
-      if (state.timeoutsThem >= state.maxTimeoutsPerSet) return;
+      if (state.timeoutsThem >= maxTimeouts) return;
       state = state.copyWith(timeoutsThem: state.timeoutsThem + 1);
     }
   }
@@ -353,8 +300,16 @@ class LiveGameNotifier extends StateNotifier<LiveGameState> {
   }
 
   void recordSubstitution() {
-    if (state.subsThisSet >= state.maxSubsPerSet) return;
-    state = state.copyWith(subsThisSet: state.subsThisSet + 1);
+    if (_engine == null) return;
+    if (!_engine!.canSubstitute(state.sportState)) return;
+    // Volleyball-specific: delegate to engine if available
+    if (_engine is dynamic && _engine != null) {
+      try {
+        final newState = (_engine as dynamic).recordSubstitution(state.sportState) as Map<String, dynamic>;
+        state = state.copyWith(sportState: newState);
+        return;
+      } catch (_) {}
+    }
   }
 
   /// Swaps a court player out and a bench player in, updating the lineup.
@@ -363,60 +318,80 @@ class LiveGameNotifier extends StateNotifier<LiveGameState> {
     required String playerOutId,
     required String playerInId,
   }) {
-    if (state.subsThisSet >= state.maxSubsPerSet) return;
+    if (_engine == null || !_engine!.canSubstitute(state.sportState)) return;
     final updatedLineup = state.lineup.map((entry) {
       if (entry.playerId == playerOutId) {
         return entry.copyWith(playerId: playerInId);
       }
       return entry;
     }).toList();
+
+    Map<String, dynamic>? newSportState;
+    try {
+      newSportState = (_engine as dynamic).recordSubstitution(state.sportState) as Map<String, dynamic>;
+    } catch (_) {
+      newSportState = state.sportState;
+    }
+
     state = state.copyWith(
       lineup: updatedLineup,
-      subsThisSet: state.subsThisSet + 1,
       selectedPlayerId: () => null,
+      sportState: newSportState,
     );
   }
 
+  // ── Sport-specific delegated methods ────────────────────────────────────
+  // These delegate to the engine for sport-specific operations.
+  // UI code can call these and the engine handles the details.
+
   void toggleServe() {
-    final current = state.servingTeam ?? 'us';
-    state = state.copyWith(
-      servingTeam: () => current == 'us' ? 'them' : 'us',
-    );
+    if (_engine == null) return;
+    try {
+      final newState = (_engine as dynamic).toggleServe(state.sportState) as Map<String, dynamic>;
+      state = state.copyWith(sportState: newState);
+    } catch (_) {
+      // Fallback for engines that don't support toggleServe
+    }
   }
 
   void rotateForward() {
-    final current = state.currentRotation ?? 1;
-    final next = current >= 6 ? 1 : current + 1;
-    state = state.copyWith(currentRotation: () => next);
+    if (_engine == null) return;
+    try {
+      final newState = (_engine as dynamic).rotateForward(state.sportState) as Map<String, dynamic>;
+      state = state.copyWith(sportState: newState);
+    } catch (_) {}
   }
 
   void rotateBackward() {
-    final current = state.currentRotation ?? 1;
-    final prev = current <= 1 ? 6 : current - 1;
-    state = state.copyWith(currentRotation: () => prev);
+    if (_engine == null) return;
+    try {
+      final newState = (_engine as dynamic).rotateBackward(state.sportState) as Map<String, dynamic>;
+      state = state.copyWith(sportState: newState);
+    } catch (_) {}
   }
 
   void setLibero(String playerId) {
-    state = state.copyWith(
-      liberoPlayerId: () => playerId,
-      liberoIsIn: false,
-      liberoReplacedPlayerId: () => null,
-    );
+    if (_engine == null) return;
+    try {
+      final newState = (_engine as dynamic).setLibero(state.sportState, playerId) as Map<String, dynamic>;
+      state = state.copyWith(sportState: newState);
+    } catch (_) {}
   }
 
   void liberoIn(String replacedPlayerId) {
-    if (state.liberoPlayerId == null) return;
-    state = state.copyWith(
-      liberoIsIn: true,
-      liberoReplacedPlayerId: () => replacedPlayerId,
-    );
+    if (_engine == null) return;
+    try {
+      final newState = (_engine as dynamic).liberoIn(state.sportState, replacedPlayerId) as Map<String, dynamic>;
+      state = state.copyWith(sportState: newState);
+    } catch (_) {}
   }
 
   void liberoOut() {
-    state = state.copyWith(
-      liberoIsIn: false,
-      liberoReplacedPlayerId: () => null,
-    );
+    if (_engine == null) return;
+    try {
+      final newState = (_engine as dynamic).liberoOut(state.sportState) as Map<String, dynamic>;
+      state = state.copyWith(sportState: newState);
+    } catch (_) {}
   }
 
   void updateScore(int us, int them) {
@@ -424,63 +399,32 @@ class LiveGameNotifier extends StateNotifier<LiveGameState> {
   }
 
   void endGame() {
-    if (state.game == null) return;
+    if (state.game == null || _engine == null) return;
 
-    // Determine result
-    int setsWonUs = 0;
-    int setsWonThem = 0;
-    for (final period in state.periods) {
-      if (period.scoreUs > period.scoreThem) {
-        setsWonUs++;
-      } else if (period.scoreThem > period.scoreUs) {
-        setsWonThem++;
-      }
-    }
-
-    GameResult result;
-    if (setsWonUs > setsWonThem) {
-      result = GameResult.win;
-    } else if (setsWonThem > setsWonUs) {
-      result = GameResult.loss;
-    } else {
-      result = GameResult.tie;
-    }
+    final result = _engine!.determineWinner(state.periods);
+    final scores = _engine!.finalScore(state.periods);
 
     state = state.copyWith(
       game: () => state.game!.copyWith(
         status: GameStatus.completed,
-        finalScoreUs: () => setsWonUs,
-        finalScoreThem: () => setsWonThem,
+        finalScoreUs: () => scores.scoreUs,
+        finalScoreThem: () => scores.scoreThem,
         result: () => result,
       ),
     );
   }
 
   void reset() {
+    _engine = null;
     state = LiveGameState.initial();
   }
 
-  // ── Serve tracking ──────────────────────────────────────────────────────
+  // ── Server identification ───────────────────────────────────────────────
 
-  /// Returns the player ID of the current server (Position 1 in rotation).
-  String? getServerPlayerId() => _getServerPlayerId(state.currentRotation);
-
-  String? _getServerPlayerId(int? rotation) {
-    if (rotation == null || state.lineup.isEmpty) return null;
-    final match = state.lineup.where((l) => l.startingRotation == rotation);
-    return match.isNotEmpty ? match.first.playerId : null;
-  }
-
-  // ── Event classification helpers ────────────────────────────────────────
-
-  static bool _isReceptionEvent(String eventType) {
-    return const {'pass_3', 'pass_2', 'pass_1', 'pass_0', 'overpass', 'pass_error'}
-        .contains(eventType);
-  }
-
-  static bool _isAttackEvent(String eventType) {
-    return const {'kill', 'attack_error', 'blocked', 'zero_attack'}
-        .contains(eventType);
+  /// Returns the player ID of the current active player (server for volleyball).
+  String? getServerPlayerId() {
+    if (_engine == null) return null;
+    return _engine!.getActivePlayerId(state.sportState, state.lineup);
   }
 }
 

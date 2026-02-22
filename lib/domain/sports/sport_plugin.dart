@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../models/game_period.dart';
+import '../models/game_summary.dart';
 import '../models/play_event.dart';
+import '../models/player.dart';
 
 abstract class SportPlugin {
   String get sportId;
@@ -21,6 +23,10 @@ abstract class SportPlugin {
   Map<String, dynamic> computeSeasonMetrics(
       Map<String, dynamic> totals, int gamesPlayed, int totalSets);
 
+  // Enrich season totals with sport-specific computed values.
+  // Called after summing game stats into totals. Default: no-op.
+  Map<String, dynamic> enrichSeasonTotals(Map<String, dynamic> totals) => totals;
+
   // Table column definitions for display
   List<StatColumn> get gameStatsColumns;
   List<StatColumn> get seasonStatsColumns;
@@ -34,6 +40,48 @@ abstract class SportPlugin {
   // Period management
   GamePeriod createNextPeriod(
       String gameId, List<GamePeriod> existing, Map<String, dynamic> gameFormat);
+
+  // Game summary generation.
+  // Default implementation returns a minimal summary. Override for sport-specific
+  // MVP formulas, top performers, and notable stat thresholds.
+  GameSummary generateGameSummary({
+    required String gameId,
+    required String opponentName,
+    required List<GamePeriod> periods,
+    required List<PlayEvent> events,
+    required List<Player> roster,
+  }) {
+    final sortedPeriods = [...periods]
+      ..sort((a, b) => a.periodNumber.compareTo(b.periodNumber));
+
+    int periodsWonUs = 0;
+    int periodsWonThem = 0;
+    for (final p in sortedPeriods) {
+      if (p.scoreUs > p.scoreThem) {
+        periodsWonUs++;
+      } else if (p.scoreThem > p.scoreUs) {
+        periodsWonThem++;
+      }
+    }
+
+    final result = periodsWonUs > periodsWonThem
+        ? 'win'
+        : periodsWonThem > periodsWonUs
+            ? 'loss'
+            : 'tie';
+
+    return GameSummary(
+      gameId: gameId,
+      opponentName: opponentName,
+      result: result,
+      setsWonUs: periodsWonUs,
+      setsWonThem: periodsWonThem,
+      setScores: [
+        for (final p in sortedPeriods)
+          (scoreUs: p.scoreUs, scoreThem: p.scoreThem),
+      ],
+    );
+  }
 }
 
 class EventCategory {
