@@ -32,11 +32,12 @@ class _SeasonStatsScreenState extends ConsumerState<SeasonStatsScreen> {
   Widget build(BuildContext context) {
     final statsAsync = ref.watch(seasonStatsProvider);
     final playersAsync = ref.watch(playersProvider);
+    final selectedTeam = ref.watch(selectedTeamProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: Text(_selectedPlayerIds.isEmpty
-            ? 'Season Stats'
+            ? (selectedTeam != null ? '${selectedTeam.name} Stats' : 'Season Stats')
             : '${_selectedPlayerIds.length} Selected'),
         actions: [
           if (_selectedPlayerIds.isNotEmpty) ...[

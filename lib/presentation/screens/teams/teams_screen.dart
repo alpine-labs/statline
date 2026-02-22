@@ -5,6 +5,7 @@ import '../../widgets/sport_icon.dart';
 import '../../../domain/models/team.dart';
 import 'edit_team_screen.dart';
 import 'roster_screen.dart';
+import 'team_detail_screen.dart';
 import 'season_screen.dart';
 
 class TeamsScreen extends ConsumerWidget {
@@ -51,7 +52,7 @@ class TeamsScreen extends ConsumerWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => RosterScreen(team: team),
+                        builder: (_) => TeamDetailScreen(team: team),
                       ),
                     );
                   },

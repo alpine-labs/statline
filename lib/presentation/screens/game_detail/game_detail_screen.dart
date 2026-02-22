@@ -708,8 +708,7 @@ class _PlayByPlayTabState extends ConsumerState<_PlayByPlayTab> {
                 ),
                 // Events (hidden when collapsed)
                 if (!isCollapsed)
-                  ...periodEvents.asMap().entries.map((entry) =>
-                      _buildEventRow(context, entry.value, players, entry.key)),
+                  ..._buildEventsWithRotationDividers(context, periodEvents, players),
               ],
             );
           },
@@ -862,6 +861,61 @@ class _PlayByPlayTabState extends ConsumerState<_PlayByPlayTab> {
     ref.invalidate(gameAllPlayEventsProvider(widget.gameId));
     ref.invalidate(gamePlayEventsProvider(widget.gameId));
     setState(() => _pendingDeletes.remove(event.id));
+  }
+
+  List<Widget> _buildEventsWithRotationDividers(
+      BuildContext context, List<PlayEvent> events, List<dynamic> players) {
+    final widgets = <Widget>[];
+    int? prevRotation;
+    for (var i = 0; i < events.length; i++) {
+      final event = events[i];
+      final rotation = event.metadata?['rotation'] as int?;
+      final servingTeam = event.metadata?['servingTeam'] as String?;
+      if (rotation != null && rotation != prevRotation) {
+        widgets.add(
+            _buildRotationDivider(context, rotation, servingTeam ?? 'them'));
+        prevRotation = rotation;
+      }
+      widgets.add(_buildEventRow(context, event, players, i));
+    }
+    return widgets;
+  }
+
+  Widget _buildRotationDivider(
+      BuildContext context, int rotation, String servingTeam) {
+    final color = Theme.of(context).colorScheme.onTertiaryContainer;
+    final bgColor =
+        Theme.of(context).colorScheme.tertiaryContainer.withAlpha(102);
+    final style = Theme.of(context).textTheme.bodySmall?.copyWith(color: color);
+    final isOurServe = servingTeam == 'us';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      color: bgColor,
+      child: Row(
+        children: [
+          Expanded(child: Divider(color: color.withAlpha(80))),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.sync, size: 14, color: color),
+                const SizedBox(width: 4),
+                Text('R$rotation', style: style),
+                Text(' · ', style: style),
+                Text(
+                  isOurServe ? 'Our Serve' : 'Their Serve',
+                  style: isOurServe
+                      ? style?.copyWith(fontWeight: FontWeight.w600)
+                      : style,
+                ),
+              ],
+            ),
+          ),
+          Expanded(child: Divider(color: color.withAlpha(80))),
+        ],
+      ),
+    );
   }
 
   Widget _buildEventRow(

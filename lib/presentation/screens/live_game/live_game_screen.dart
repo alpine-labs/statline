@@ -272,9 +272,17 @@ class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
               ),
               const SizedBox(height: 24),
               Text(
-                'Start a New Game',
+                'No Active Game',
                 style: Theme.of(context).textTheme.headlineMedium,
               ),
+              const SizedBox(height: 8),
+              if (selectedTeam != null)
+                Text(
+                  selectedTeam.name,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
               const SizedBox(height: 8),
               Text(
                 selectedTeam != null
