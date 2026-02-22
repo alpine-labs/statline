@@ -215,9 +215,14 @@ class ScoreboardWidget extends StatelessWidget {
     return Colors.white.withAlpha(128);
   }
 
-  /// Timeout dots: tap to record, long-press to undo.
+  /// Timeout button: tappable "TO 0/2" text. Tap to record, long-press to undo.
   /// Us = amber, Them = red.
   Widget _buildTimeoutDots(int used, int max, bool isUs) {
+    final color = used > 0
+        ? (isUs ? Colors.amber : Colors.redAccent)
+        : Colors.white38;
+    final atMax = used >= max;
+
     return GestureDetector(
       onTap: () {
         if (isUs) {
@@ -235,30 +240,21 @@ class ScoreboardWidget extends StatelessWidget {
         }
         HapticFeedback.mediumImpact();
       },
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: List.generate(max, (i) {
-          final isFilled = i < used;
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 1),
-            child: Container(
-              width: 10,
-              height: 10,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: isFilled
-                    ? (isUs ? Colors.amber : Colors.redAccent)
-                    : Colors.transparent,
-                border: Border.all(
-                  color: isFilled
-                      ? (isUs ? Colors.amber : Colors.redAccent)
-                      : Colors.white38,
-                  width: 1.5,
-                ),
-              ),
-            ),
-          );
-        }),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: color.withAlpha(102), width: 1),
+          color: atMax ? color.withAlpha(38) : Colors.transparent,
+        ),
+        child: Text(
+          'TO $used/$max',
+          style: TextStyle(
+            color: color,
+            fontSize: 10,
+            fontWeight: atMax ? FontWeight.bold : FontWeight.w500,
+          ),
+        ),
       ),
     );
   }
