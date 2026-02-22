@@ -17,6 +17,8 @@ import 'widgets/points_source_chart.dart';
 import 'widgets/player_contribution_chart.dart';
 import 'widgets/service_scatter_chart.dart';
 import 'widgets/home_away_chart.dart';
+import 'widgets/game_margin_chart.dart';
+import 'widgets/recent_form_heatmap.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -74,100 +76,17 @@ class DashboardScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // 1. Start Game hero card
-          _buildStartGameCard(context, selectedTeam.name),
-          const SizedBox(height: 16),
-
-          // 2. Season record + streak
-          gamesAsync.when(
-            data: (games) => _buildRecordCard(context, record, games),
-            loading: () => _buildRecordCard(context, record, []),
-            error: (_, __) => _buildRecordCard(context, record, []),
-          ),
-          const SizedBox(height: 16),
-
-          // 2a. Needs Attention alert card
-          const _NeedsAttentionCard(),
-
-          // 2b. Insights panel (tabbed charts)
-          gamesAsync.when(
-            data: (games) => statsAsync.when(
-              data: (stats) => _InsightsPanel(games: games, stats: stats),
-              loading: () => const SizedBox.shrink(),
-              error: (_, __) => const SizedBox.shrink(),
-            ),
-            loading: () => const SizedBox.shrink(),
-            error: (_, __) => const SizedBox.shrink(),
-          ),
-          const SizedBox(height: 16),
-
-          // 3. Last Game box score
-          gamesAsync.when(
-            data: (games) {
-              final completed = games
-                  .where((g) => g.status == GameStatus.completed)
-                  .toList()
-                ..sort((a, b) => b.gameDate.compareTo(a.gameDate));
-              if (completed.isEmpty) return const SizedBox.shrink();
-              return _buildLastGameCard(context, completed.first);
-            },
-            loading: () => const SizedBox.shrink(),
-            error: (_, __) => const SizedBox.shrink(),
-          ),
-          const SizedBox(height: 24),
-
-          // 4. Recent Games
-          Text(
-            'Recent Games',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 8),
-          gamesAsync.when(
-            data: (games) {
-              if (games.isEmpty) {
-                return const Card(
-                  child: Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Center(child: Text('No games yet')),
-                  ),
-                );
-              }
-              final recent = games.take(5).toList();
-              return Column(
-                children:
-                    recent.map((game) => _buildGameTile(context, game)).toList(),
-              );
-            },
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => Text('Error: $e'),
-          ),
-          const SizedBox(height: 24),
-
-          // 5. Team Leaders
-          Text(
-            'Team Leaders',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 8),
-          statsAsync.when(
-            data: (stats) {
-              if (stats.isEmpty) {
-                return const Card(
-                  child: Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Center(child: Text('No stats yet')),
-                  ),
-                );
-              }
-              return _TeamLeadersCard(stats: stats);
-            },
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => Text('Error: $e'),
-          ),
-        ],
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isWide = constraints.maxWidth >= 900;
+          return _DashboardBody(
+            isWide: isWide,
+            selectedTeam: selectedTeam,
+            gamesAsync: gamesAsync,
+            statsAsync: statsAsync,
+            record: record,
+          );
+        },
       ),
     );
   }
@@ -176,7 +95,111 @@ class DashboardScreen extends ConsumerWidget {
     return const _EmptyDashboard();
   }
 
-  Widget _buildStartGameCard(BuildContext context, String teamName) {
+  Widget _buildStartGameCard(BuildContext context, String teamName, List<Game> games) {
+    // Check for in-progress game
+    final inProgress = games.where((g) => g.status == GameStatus.inProgress).toList();
+    if (inProgress.isNotEmpty) {
+      final game = inProgress.first;
+      return Card(
+        color: const Color(0xFFE65100),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => context.go('/live-game'),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+            child: Row(
+              children: [
+                const Icon(Icons.play_arrow,
+                    size: 48, color: StatLineColors.onPrimary),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        teamName,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              color: StatLineColors.onPrimary.withAlpha(204),
+                            ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Resume Game vs ${game.opponentName}',
+                        style:
+                            Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                  color: StatLineColors.onPrimary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.arrow_forward_ios,
+                    color: StatLineColors.onPrimary, size: 20),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Check for upcoming scheduled game within 48 hours
+    final now = DateTime.now();
+    final upcoming = games
+        .where((g) =>
+            g.status == GameStatus.scheduled &&
+            g.gameDate.isAfter(now) &&
+            g.gameDate.isBefore(now.add(const Duration(hours: 48))))
+        .toList()
+      ..sort((a, b) => a.gameDate.compareTo(b.gameDate));
+
+    if (upcoming.isNotEmpty) {
+      final game = upcoming.first;
+      final dateStr = _formatDate(game.gameDate);
+      return Card(
+        color: StatLineColors.nordicSlate,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => context.go('/live-game'),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+            child: Row(
+              children: [
+                const Icon(Icons.event,
+                    size: 48, color: StatLineColors.onPrimary),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        teamName,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              color: StatLineColors.onPrimary.withAlpha(204),
+                            ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Next Up: vs ${game.opponentName} – $dateStr',
+                        style:
+                            Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                  color: StatLineColors.onPrimary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.arrow_forward_ios,
+                    color: StatLineColors.onPrimary, size: 20),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Default: Start a new game
     return Card(
       color: StatLineColors.primaryAccent,
       clipBehavior: Clip.antiAlias,
@@ -486,6 +509,235 @@ class DashboardScreen extends ConsumerWidget {
   }
 }
 
+// ── Responsive Dashboard Body ────────────────────────────────────────────────
+
+class _DashboardBody extends ConsumerStatefulWidget {
+  final bool isWide;
+  final Team selectedTeam;
+  final AsyncValue<List<Game>> gamesAsync;
+  final AsyncValue<List<dynamic>> statsAsync;
+  final Map<String, int> record;
+
+  const _DashboardBody({
+    required this.isWide,
+    required this.selectedTeam,
+    required this.gamesAsync,
+    required this.statsAsync,
+    required this.record,
+  });
+
+  @override
+  ConsumerState<_DashboardBody> createState() => _DashboardBodyState();
+}
+
+class _DashboardBodyState extends ConsumerState<_DashboardBody> {
+  bool _recentGamesExpanded = true;
+  bool _teamLeadersExpanded = true;
+
+  @override
+  Widget build(BuildContext context) {
+    final dashboard = DashboardScreen();
+    final games = widget.gamesAsync.valueOrNull ?? [];
+
+    // Shared widgets
+    final heroCard = dashboard._buildStartGameCard(
+        context, widget.selectedTeam.name, games);
+
+    final recordCard = widget.gamesAsync.when(
+      data: (games) => dashboard._buildRecordCard(context, widget.record, games),
+      loading: () => dashboard._buildRecordCard(context, widget.record, []),
+      error: (_, __) => dashboard._buildRecordCard(context, widget.record, []),
+    );
+
+    final needsAttention = const _NeedsAttentionCard();
+
+    final insightsPanel = widget.gamesAsync.when(
+      data: (games) => widget.statsAsync.when(
+        data: (stats) => _InsightsPanel(games: games, stats: stats),
+        loading: () => const SizedBox.shrink(),
+        error: (_, __) => const SizedBox.shrink(),
+      ),
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+    );
+
+    final lastGameCard = widget.gamesAsync.when(
+      data: (games) {
+        final completed = games
+            .where((g) => g.status == GameStatus.completed)
+            .toList()
+          ..sort((a, b) => b.gameDate.compareTo(a.gameDate));
+        if (completed.isEmpty) return const SizedBox.shrink();
+        return dashboard._buildLastGameCard(context, completed.first);
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+    );
+
+    final recentGamesContent = widget.gamesAsync.when(
+      data: (games) {
+        if (games.isEmpty) {
+          return const Card(
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: Center(child: Text('No games yet')),
+            ),
+          );
+        }
+        final recent = games.take(5).toList();
+        return Column(
+          children: recent
+              .map((game) => dashboard._buildGameTile(context, game))
+              .toList(),
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Text('Error: $e'),
+    );
+
+    final teamLeadersContent = widget.statsAsync.when(
+      data: (stats) {
+        if (stats.isEmpty) {
+          return const Card(
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: Center(child: Text('No stats yet')),
+            ),
+          );
+        }
+        return _TeamLeadersCard(stats: stats);
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Text('Error: $e'),
+    );
+
+    // Collapsible sections
+    final recentGamesSection = _CollapsibleSection(
+      title: 'Recent Games',
+      isExpanded: _recentGamesExpanded,
+      onToggle: () => setState(() => _recentGamesExpanded = !_recentGamesExpanded),
+      child: recentGamesContent,
+    );
+
+    final teamLeadersSection = _CollapsibleSection(
+      title: 'Team Leaders',
+      isExpanded: _teamLeadersExpanded,
+      onToggle: () => setState(() => _teamLeadersExpanded = !_teamLeadersExpanded),
+      child: teamLeadersContent,
+    );
+
+    if (widget.isWide) {
+      return ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          // Row 1: Hero (60%) + Last Game (40%)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(flex: 6, child: heroCard),
+              const SizedBox(width: 16),
+              Expanded(flex: 4, child: lastGameCard),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // Row 2: Needs Attention + Season Record side by side
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: needsAttention),
+              const SizedBox(width: 16),
+              Expanded(child: recordCard),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // Row 3: Insights Panel (full width)
+          insightsPanel,
+          const SizedBox(height: 16),
+          // Row 4: Team Leaders (50%) + Recent Games (50%)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: teamLeadersSection),
+              const SizedBox(width: 16),
+              Expanded(child: recentGamesSection),
+            ],
+          ),
+        ],
+      );
+    }
+
+    // Mobile: single column
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        heroCard,
+        const SizedBox(height: 16),
+        recordCard,
+        const SizedBox(height: 16),
+        needsAttention,
+        insightsPanel,
+        const SizedBox(height: 16),
+        lastGameCard,
+        const SizedBox(height: 24),
+        recentGamesSection,
+        const SizedBox(height: 24),
+        teamLeadersSection,
+      ],
+    );
+  }
+}
+
+// ── Collapsible Section ──────────────────────────────────────────────────────
+
+class _CollapsibleSection extends StatelessWidget {
+  final String title;
+  final bool isExpanded;
+  final VoidCallback onToggle;
+  final Widget child;
+
+  const _CollapsibleSection({
+    required this.title,
+    required this.isExpanded,
+    required this.onToggle,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          onTap: onToggle,
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
+              AnimatedRotation(
+                turns: isExpanded ? 0.0 : -0.25,
+                duration: const Duration(milliseconds: 200),
+                child: const Icon(Icons.expand_more),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        AnimatedCrossFade(
+          firstChild: child,
+          secondChild: const SizedBox.shrink(),
+          crossFadeState:
+              isExpanded ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+          duration: const Duration(milliseconds: 200),
+        ),
+      ],
+    );
+  }
+}
+
 // ── Insights Panel (tabbed charts + alert summary) ───────────────────────────
 
 class _InsightsPanel extends ConsumerStatefulWidget {
@@ -505,7 +757,7 @@ class _InsightsPanelState extends ConsumerState<_InsightsPanel>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
   }
 
   @override
@@ -561,6 +813,8 @@ class _InsightsPanelState extends ConsumerState<_InsightsPanel>
     final playerContribution = ref.watch(playerContributionProvider);
     final serviceEfficiency = ref.watch(serviceEfficiencyProvider);
     final homeAway = ref.watch(homeAwayProvider);
+    final gameMargin = ref.watch(gameMarginProvider);
+    final recentForm = ref.watch(recentFormProvider);
 
     return Card(
       child: Padding(
@@ -588,10 +842,12 @@ class _InsightsPanelState extends ConsumerState<_InsightsPanel>
             TabBar(
               controller: _tabController,
               labelStyle: Theme.of(context).textTheme.labelMedium,
+              isScrollable: true,
               tabs: const [
                 Tab(text: 'Trends'),
                 Tab(text: 'Balance'),
                 Tab(text: 'Context'),
+                Tab(text: 'Form'),
               ],
             ),
             // Tab content
@@ -622,20 +878,21 @@ class _InsightsPanelState extends ConsumerState<_InsightsPanel>
                       ],
                     ),
                   ),
-                  // Context tab: Home vs Away + text insights
+                  // Context tab: Home vs Away + Game Margins
                   SingleChildScrollView(
                     padding: const EdgeInsets.only(top: 12),
                     child: Column(
                       children: [
                         HomeAwayChart(data: homeAway),
                         const SizedBox(height: 16),
-                        ...alerts.map((a) => Padding(
-                              padding: const EdgeInsets.only(bottom: 4),
-                              child: Text(a,
-                                  style: Theme.of(context).textTheme.bodySmall),
-                            )),
+                        GameMarginChart(data: gameMargin),
                       ],
                     ),
+                  ),
+                  // Form tab: Recent Form Heatmap
+                  SingleChildScrollView(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: RecentFormHeatmap(data: recentForm),
                   ),
                 ],
               ),

@@ -77,6 +77,20 @@ class VolleyballStats {
     return (kills + aces + blockSolos + blockAssists * 0.5);
   }
 
+  /// Classify a volleyball game margin from set scores.
+  /// Returns one of: 'blowoutWin', 'win', 'loss', 'blowoutLoss'.
+  /// A 3-0 result is a blowout; 3-1 and 3-2 are regular wins/losses.
+  static String classifyGameMargin(int setsUs, int setsThem) {
+    if (setsUs == 3 && setsThem == 0) return 'blowoutWin';
+    if (setsUs == 3 && (setsThem == 1 || setsThem == 2)) return 'win';
+    if (setsThem == 3 && (setsUs == 1 || setsUs == 2)) return 'loss';
+    if (setsThem == 3 && setsUs == 0) return 'blowoutLoss';
+    // Fallback for non-standard scores
+    if (setsUs > setsThem) return 'win';
+    if (setsThem > setsUs) return 'loss';
+    return 'win'; // tie not expected in volleyball
+  }
+
   /// Aggregate stats from a list of play events for a single player.
   /// If [playerId] is null, aggregates for all events (team stats).
   static Map<String, dynamic> aggregateFromEvents(

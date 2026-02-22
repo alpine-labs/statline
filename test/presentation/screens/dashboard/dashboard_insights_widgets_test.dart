@@ -6,6 +6,8 @@ import 'package:statline/presentation/screens/dashboard/widgets/points_source_ch
 import 'package:statline/presentation/screens/dashboard/widgets/player_contribution_chart.dart';
 import 'package:statline/presentation/screens/dashboard/widgets/service_scatter_chart.dart';
 import 'package:statline/presentation/screens/dashboard/widgets/home_away_chart.dart';
+import 'package:statline/presentation/screens/dashboard/widgets/game_margin_chart.dart';
+import 'package:statline/presentation/screens/dashboard/widgets/recent_form_heatmap.dart';
 
 void main() {
   // ── Efficiency Trend Chart ──────────────────────────────────────────────
@@ -294,6 +296,197 @@ void main() {
       );
 
       expect(find.text('All games have been at home so far'), findsOneWidget);
+    });
+  });
+
+  // ── Game Margin Chart ──────────────────────────────────────────────────
+
+  group('GameMarginChart', () {
+    testWidgets('renders with valid data', (tester) async {
+      const data = GameMarginData(
+        blowoutWins: 3,
+        wins: 4,
+        losses: 2,
+        blowoutLosses: 1,
+      );
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: GameMarginChart(data: data),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Game Margins'), findsOneWidget);
+      expect(find.text('No completed games yet'), findsNothing);
+    });
+
+    testWidgets('renders empty state with zero data', (tester) async {
+      const data = GameMarginData(
+        blowoutWins: 0,
+        wins: 0,
+        losses: 0,
+        blowoutLosses: 0,
+      );
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: GameMarginChart(data: data),
+          ),
+        ),
+      );
+
+      expect(find.text('No completed games yet'), findsOneWidget);
+    });
+  });
+
+  // ── Recent Form Heatmap ────────────────────────────────────────────────
+
+  group('RecentFormHeatmap', () {
+    testWidgets('renders with valid data (3+ games)', (tester) async {
+      final data = RecentFormData(games: [
+        const RecentFormGame(gameId: 'g1', opponent: 'Eagles', isWin: true,
+            hittingPct: 0.300, aces: 5, errors: 1, digs: 20),
+        const RecentFormGame(gameId: 'g2', opponent: 'Hawks', isWin: false,
+            hittingPct: 0.100, aces: 1, errors: 5, digs: 10),
+        const RecentFormGame(gameId: 'g3', opponent: 'Lions', isWin: true,
+            hittingPct: 0.200, aces: 3, errors: 3, digs: 15),
+      ]);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: RecentFormHeatmap(data: data),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Recent Form'), findsOneWidget);
+      expect(find.text('Eagles'), findsOneWidget);
+      expect(find.text('Hawks'), findsOneWidget);
+      expect(find.text('Lions'), findsOneWidget);
+      expect(find.text('Need 3+ completed games to show form'), findsNothing);
+    });
+
+    testWidgets('renders empty state with < 3 games', (tester) async {
+      final data = RecentFormData(games: [
+        const RecentFormGame(gameId: 'g1', opponent: 'Eagles', isWin: true,
+            hittingPct: 0.300, aces: 5, errors: 1, digs: 20),
+      ]);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: RecentFormHeatmap(data: data),
+          ),
+        ),
+      );
+
+      expect(find.text('Need 3+ completed games to show form'), findsOneWidget);
+    });
+
+    testWidgets('renders empty state with no games', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: RecentFormHeatmap(data: RecentFormData(games: [])),
+          ),
+        ),
+      );
+
+      expect(find.text('Need 3+ completed games to show form'), findsOneWidget);
+    });
+
+    testWidgets('correct color coding (green/yellow/red cells present)', (tester) async {
+      final data = RecentFormData(games: [
+        const RecentFormGame(gameId: 'g1', opponent: 'Eagles', isWin: true,
+            hittingPct: 0.350, aces: 6, errors: 0, digs: 25),
+        const RecentFormGame(gameId: 'g2', opponent: 'Hawks', isWin: false,
+            hittingPct: 0.050, aces: 0, errors: 6, digs: 8),
+        const RecentFormGame(gameId: 'g3', opponent: 'Lions', isWin: true,
+            hittingPct: 0.200, aces: 3, errors: 3, digs: 15),
+        const RecentFormGame(gameId: 'g4', opponent: 'Bears', isWin: true,
+            hittingPct: 0.280, aces: 4, errors: 2, digs: 18),
+      ]);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: RecentFormHeatmap(data: data),
+            ),
+          ),
+        ),
+      );
+
+      // Verify that stat cells are rendered (they're Containers with color property)
+      // With 4 games and 4 stat columns, we should have 16 colored stat cells
+      final coloredContainers = find.byWidgetPredicate(
+        (w) {
+          if (w is! Container) return false;
+          final c = w.color;
+          return c == const Color(0xFFE8F5E9) ||
+              c == const Color(0xFFFFF8E1) ||
+              c == const Color(0xFFFFEBEE);
+        },
+      );
+      // 4 games × 4 stat columns = 16 colored cells
+      expect(coloredContainers, findsNWidgets(16));
+    });
+
+    testWidgets('truncates long opponent names', (tester) async {
+      final data = RecentFormData(games: [
+        const RecentFormGame(gameId: 'g1', opponent: 'Very Long Team Name Here', isWin: true,
+            hittingPct: 0.300, aces: 5, errors: 1, digs: 20),
+        const RecentFormGame(gameId: 'g2', opponent: 'Short', isWin: false,
+            hittingPct: 0.100, aces: 1, errors: 5, digs: 10),
+        const RecentFormGame(gameId: 'g3', opponent: 'Medium Name', isWin: true,
+            hittingPct: 0.200, aces: 3, errors: 3, digs: 15),
+      ]);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: RecentFormHeatmap(data: data),
+            ),
+          ),
+        ),
+      );
+
+      // Long name should be truncated to 12 chars + ellipsis
+      expect(find.text('Very Long Te…'), findsOneWidget);
+      expect(find.text('Short'), findsOneWidget);
+    });
+
+    testWidgets('W and L badges render correctly', (tester) async {
+      final data = RecentFormData(games: [
+        const RecentFormGame(gameId: 'g1', opponent: 'Eagles', isWin: true,
+            hittingPct: 0.300, aces: 5, errors: 1, digs: 20),
+        const RecentFormGame(gameId: 'g2', opponent: 'Hawks', isWin: false,
+            hittingPct: 0.100, aces: 1, errors: 5, digs: 10),
+        const RecentFormGame(gameId: 'g3', opponent: 'Lions', isWin: true,
+            hittingPct: 0.200, aces: 3, errors: 3, digs: 15),
+      ]);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: RecentFormHeatmap(data: data),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('W'), findsNWidgets(2));
+      expect(find.text('L'), findsOneWidget);
     });
   });
 }

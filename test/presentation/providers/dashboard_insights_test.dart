@@ -593,4 +593,155 @@ void main() {
       expect(result, isEmpty);
     });
   });
+
+  // ── Game Margin Classification ──────────────────────────────────────────
+
+  group('VolleyballStats.classifyGameMargin', () {
+    test('3-0 is blowout win', () {
+      expect(VolleyballStats.classifyGameMargin(3, 0), 'blowoutWin');
+    });
+
+    test('3-1 is win', () {
+      expect(VolleyballStats.classifyGameMargin(3, 1), 'win');
+    });
+
+    test('3-2 is win', () {
+      expect(VolleyballStats.classifyGameMargin(3, 2), 'win');
+    });
+
+    test('2-3 is loss', () {
+      expect(VolleyballStats.classifyGameMargin(2, 3), 'loss');
+    });
+
+    test('1-3 is loss', () {
+      expect(VolleyballStats.classifyGameMargin(1, 3), 'loss');
+    });
+
+    test('0-3 is blowout loss', () {
+      expect(VolleyballStats.classifyGameMargin(0, 3), 'blowoutLoss');
+    });
+  });
+
+  // ── Game Margin Distribution ────────────────────────────────────────────
+
+  group('computeGameMargin', () {
+    test('all 4 categories', () {
+      final games = [
+        makeGame(id: 'g1', opponent: 'A', result: GameResult.win).copyWith(
+          finalScoreUs: () => 3, finalScoreThem: () => 0),
+        makeGame(id: 'g2', opponent: 'B', result: GameResult.win).copyWith(
+          finalScoreUs: () => 3, finalScoreThem: () => 1),
+        makeGame(id: 'g3', opponent: 'C', result: GameResult.win).copyWith(
+          finalScoreUs: () => 3, finalScoreThem: () => 2),
+        makeGame(id: 'g4', opponent: 'D', result: GameResult.loss).copyWith(
+          finalScoreUs: () => 2, finalScoreThem: () => 3),
+        makeGame(id: 'g5', opponent: 'E', result: GameResult.loss).copyWith(
+          finalScoreUs: () => 1, finalScoreThem: () => 3),
+        makeGame(id: 'g6', opponent: 'F', result: GameResult.loss).copyWith(
+          finalScoreUs: () => 0, finalScoreThem: () => 3),
+      ];
+
+      final result = computeGameMargin(games);
+      expect(result.blowoutWins, 1);  // 3-0
+      expect(result.wins, 2);          // 3-1, 3-2
+      expect(result.losses, 2);        // 2-3, 1-3
+      expect(result.blowoutLosses, 1); // 0-3
+      expect(result.total, 6);
+    });
+
+    test('no completed games returns zeros', () {
+      final result = computeGameMargin([]);
+      expect(result.blowoutWins, 0);
+      expect(result.wins, 0);
+      expect(result.losses, 0);
+      expect(result.blowoutLosses, 0);
+      expect(result.total, 0);
+    });
+
+    test('skips games with 0-0 scores', () {
+      final games = [
+        makeGame(id: 'g1', opponent: 'A', result: GameResult.win).copyWith(
+          finalScoreUs: () => 0, finalScoreThem: () => 0),
+      ];
+
+      final result = computeGameMargin(games);
+      expect(result.total, 0);
+    });
+  });
+
+  // ── Recent Form Data ────────────────────────────────────────────────────
+
+  group('computeRecentForm', () {
+    test('correct ordering newest first', () {
+      final games = List.generate(5, (i) => makeGame(
+        id: 'g$i',
+        opponent: 'Team $i',
+        result: i % 2 == 0 ? GameResult.win : GameResult.loss,
+        daysAgo: i,
+      ));
+      final stats = [
+        makeStat(playerId: 'p1', kills: 40, errors: 10, totalAttempts: 100,
+            aces: 10, serviceErrors: 5, digs: 50, gamesPlayed: 5),
+      ];
+
+      final result = computeRecentForm(games, stats, []);
+      expect(result.games.length, 5);
+      // Newest first
+      expect(result.games.first.opponent, 'Team 0');
+      expect(result.games.last.opponent, 'Team 4');
+    });
+
+    test('returns empty when < 3 games', () {
+      final games = [
+        makeGame(id: 'g1', opponent: 'A', result: GameResult.win, daysAgo: 1),
+        makeGame(id: 'g2', opponent: 'B', result: GameResult.loss, daysAgo: 2),
+      ];
+      final stats = [
+        makeStat(playerId: 'p1', kills: 20, errors: 5, totalAttempts: 50),
+      ];
+
+      final result = computeRecentForm(games, stats, []);
+      expect(result.games, isEmpty);
+    });
+
+    test('limits to 10 games', () {
+      final games = List.generate(15, (i) => makeGame(
+        id: 'g$i',
+        opponent: 'Team $i',
+        result: GameResult.win,
+        daysAgo: i,
+      ));
+      final stats = [
+        makeStat(playerId: 'p1', kills: 40, errors: 10, totalAttempts: 100,
+            aces: 15, serviceErrors: 5, digs: 60, gamesPlayed: 15),
+      ];
+
+      final result = computeRecentForm(games, stats, []);
+      expect(result.games.length, 10);
+    });
+
+    test('percentile thresholds computed correctly', () {
+      final formData = RecentFormData(games: [
+        const RecentFormGame(gameId: 'g1', opponent: 'A', isWin: true,
+            hittingPct: 0.300, aces: 5, errors: 1, digs: 20),
+        const RecentFormGame(gameId: 'g2', opponent: 'B', isWin: false,
+            hittingPct: 0.100, aces: 1, errors: 5, digs: 10),
+        const RecentFormGame(gameId: 'g3', opponent: 'C', isWin: true,
+            hittingPct: 0.200, aces: 3, errors: 3, digs: 15),
+      ]);
+
+      final (low, high) = formData.thresholdsFor((g) => g.hittingPct);
+      // Sorted: [0.100, 0.200, 0.300]
+      // lowIdx = floor(3/3) = 1 → 0.200, highIdx = floor(6/3) = 2 → 0.300
+      expect(low, closeTo(0.200, 0.001));
+      expect(high, closeTo(0.300, 0.001));
+    });
+
+    test('empty games returns empty thresholds', () {
+      const formData = RecentFormData(games: []);
+      final (low, high) = formData.thresholdsFor((g) => g.hittingPct);
+      expect(low, 0);
+      expect(high, 0);
+    });
+  });
 }
