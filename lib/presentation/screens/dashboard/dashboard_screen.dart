@@ -45,7 +45,7 @@ class DashboardScreen extends ConsumerWidget {
         actions: [
           if (activeSeason != null)
             Padding(
-              padding: const EdgeInsets.only(right: 16),
+              padding: const EdgeInsets.only(right: 4),
               child: Center(
                 child: Text(
                   activeSeason.name,
@@ -58,6 +58,14 @@ class DashboardScreen extends ConsumerWidget {
                 ),
               ),
             ),
+          IconButton(
+            icon: const Icon(Icons.swap_horiz),
+            tooltip: 'Switch Team',
+            onPressed: () {
+              ref.read(selectedTeamProvider.notifier).state = null;
+              ref.read(activeSeasonProvider.notifier).state = null;
+            },
+          ),
         ],
       ),
       body: ListView(
