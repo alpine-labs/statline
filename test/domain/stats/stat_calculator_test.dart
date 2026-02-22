@@ -145,7 +145,8 @@ void main() {
       );
 
       expect(result.gamesPlayed, 0);
-      expect(result.statsTotals, isEmpty);
+      // Season recalculation always produces hittingPercentage (0.0 from 0/0)
+      expect(result.statsTotals['hittingPercentage'], 0.0);
     });
   });
 }
