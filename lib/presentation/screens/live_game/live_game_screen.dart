@@ -562,7 +562,7 @@ class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
     if (serverId == null) return null;
     final player = liveState.roster.where((p) => p.id == serverId);
     if (player.isEmpty) return null;
-    return '${player.first.jerseyNumber}';
+    return player.first.jerseyNumber;
   }
 
   void _handleLiberoToggle(

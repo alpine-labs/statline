@@ -377,7 +377,7 @@ class _LineupSetupSheetState extends State<LineupSetupSheet> {
                           ? theme.colorScheme.primaryContainer
                           : theme.colorScheme.surfaceContainerHighest,
                   child: Text(
-                    '${player.jerseyNumber}',
+                    player.jerseyNumber,
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
