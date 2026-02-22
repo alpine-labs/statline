@@ -575,6 +575,10 @@ class _PlayByPlayTabState extends ConsumerState<_PlayByPlayTab> {
   final Set<String> _pendingDeletes = {};
   /// Tracks which set period IDs are collapsed.
   final Set<String> _collapsedSets = {};
+  /// Active filter: null = all, otherwise filter key.
+  String _activeFilter = 'all';
+  /// Selected player ID for "By Player" filter.
+  String? _filterPlayerId;
 
   @override
   Widget build(BuildContext context) {
@@ -601,9 +605,12 @@ class _PlayByPlayTabState extends ConsumerState<_PlayByPlayTab> {
         final periods = periodsAsync.valueOrNull ?? [];
         final players = playersAsync.valueOrNull ?? [];
 
+        // Apply filter
+        final filteredEvents = _applyFilter(events, players);
+
         // Group events by periodId
         final grouped = <String, List<PlayEvent>>{};
-        for (final e in events) {
+        for (final e in filteredEvents) {
           grouped.putIfAbsent(e.periodId, () => []).add(e);
         }
 
@@ -705,12 +712,24 @@ class _PlayByPlayTabState extends ConsumerState<_PlayByPlayTab> {
           },
         );
 
-        if (!widget.correctionMode) return listView;
+        if (!widget.correctionMode) {
+          return Column(
+            children: [
+              _buildFilterChips(context, players),
+              Expanded(child: listView),
+            ],
+          );
+        }
 
         // Correction mode: overlay FAB for inserting events
         return Stack(
           children: [
-            listView,
+            Column(
+              children: [
+                _buildFilterChips(context, players),
+                Expanded(child: listView),
+              ],
+            ),
             Positioned(
               right: 16,
               bottom: 16,
@@ -729,6 +748,106 @@ class _PlayByPlayTabState extends ConsumerState<_PlayByPlayTab> {
           ],
         );
       },
+    );
+  }
+
+  List<PlayEvent> _applyFilter(List<PlayEvent> events, List<dynamic> players) {
+    switch (_activeFilter) {
+      case 'points':
+        return events
+            .where(
+                (e) => e.result == 'point_us' || e.result == 'point_them')
+            .toList();
+      case 'errors':
+        return events
+            .where((e) =>
+                e.result == 'error' || e.eventType.contains('error'))
+            .toList();
+      case 'player':
+        if (_filterPlayerId == null) return events;
+        return events
+            .where((e) => e.playerId == _filterPlayerId)
+            .toList();
+      default:
+        return events;
+    }
+  }
+
+  Widget _buildFilterChips(BuildContext context, List<dynamic> players) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: Row(
+        children: [
+          _filterChip(context, 'All', 'all'),
+          const SizedBox(width: 6),
+          _filterChip(context, 'Points', 'points'),
+          const SizedBox(width: 6),
+          _filterChip(context, 'Errors', 'errors'),
+          const SizedBox(width: 6),
+          _playerFilterChip(context, players),
+        ],
+      ),
+    );
+  }
+
+  Widget _filterChip(BuildContext context, String label, String key) {
+    final selected = _activeFilter == key;
+    return FilterChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => setState(() {
+        _activeFilter = key;
+        _filterPlayerId = null;
+      }),
+      visualDensity: VisualDensity.compact,
+    );
+  }
+
+  Widget _playerFilterChip(BuildContext context, List<dynamic> players) {
+    final selected = _activeFilter == 'player';
+    final label = selected && _filterPlayerId != null
+        ? players
+            .where((p) => p.id == _filterPlayerId)
+            .map((p) => p.shortName)
+            .firstOrNull ?? 'Player'
+        : 'By Player';
+    return FilterChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) {
+        if (players.isEmpty) return;
+        _showPlayerFilterPicker(context, players);
+      },
+      visualDensity: VisualDensity.compact,
+    );
+  }
+
+  void _showPlayerFilterPicker(BuildContext context, List<dynamic> players) {
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => ListView(
+        shrinkWrap: true,
+        children: [
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: Text('Filter by Player',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          ),
+          ...players.map((p) => ListTile(
+                leading: CircleAvatar(child: Text(p.jerseyNumber)),
+                title: Text('${p.firstName} ${p.lastName}'),
+                selected: _filterPlayerId == p.id,
+                onTap: () {
+                  setState(() {
+                    _activeFilter = 'player';
+                    _filterPlayerId = p.id;
+                  });
+                  Navigator.pop(ctx);
+                },
+              )),
+        ],
+      ),
     );
   }
 
@@ -1011,6 +1130,7 @@ class _EventEditSheetState extends ConsumerState<_EventEditSheet> {
   late String _selectedCategory;
   late String _selectedEventType;
   late String _selectedResult;
+  late bool _isOpponent;
 
   // Available categories and their actions
   static const _categoryActions = {
@@ -1054,6 +1174,7 @@ class _EventEditSheetState extends ConsumerState<_EventEditSheet> {
     _selectedCategory = widget.event.eventCategory;
     _selectedEventType = widget.event.eventType;
     _selectedResult = widget.event.result;
+    _isOpponent = widget.event.isOpponent;
   }
 
   List<String> get _availableActions =>
@@ -1068,7 +1189,8 @@ class _EventEditSheetState extends ConsumerState<_EventEditSheet> {
     // Insert corrected event
     final corrected = widget.event.copyWith(
       id: '${widget.event.id}_c${DateTime.now().millisecondsSinceEpoch}',
-      playerId: _selectedPlayerId,
+      playerId: _isOpponent ? 'opponent' : _selectedPlayerId,
+      isOpponent: _isOpponent,
       eventCategory: _selectedCategory,
       eventType: _selectedEventType,
       result: _selectedResult,
@@ -1126,14 +1248,31 @@ class _EventEditSheetState extends ConsumerState<_EventEditSheet> {
               style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 16),
 
-          // Player
+          // Opponent toggle
+          SwitchListTile(
+            title: const Text('Opponent Event'),
+            value: _isOpponent,
+            onChanged: (v) => setState(() => _isOpponent = v),
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+          ),
+          const SizedBox(height: 8),
+
+          // Player (disabled for opponent events)
           DropdownButtonFormField<String>(
-            value: playerItems.any((i) => i.value == _selectedPlayerId)
-                ? _selectedPlayerId
-                : null,
-            decoration: const InputDecoration(labelText: 'Player'),
-            items: playerItems,
-            onChanged: (v) => setState(() => _selectedPlayerId = v!),
+            value: _isOpponent
+                ? null
+                : playerItems.any((i) => i.value == _selectedPlayerId)
+                    ? _selectedPlayerId
+                    : null,
+            decoration: InputDecoration(
+              labelText: 'Player',
+              enabled: !_isOpponent,
+            ),
+            items: _isOpponent ? [] : playerItems,
+            onChanged: _isOpponent
+                ? null
+                : (v) => setState(() => _selectedPlayerId = v!),
           ),
           const SizedBox(height: 12),
 
@@ -1358,6 +1497,7 @@ class _EventInsertSheetState extends ConsumerState<_EventInsertSheet> {
   String _selectedCategory = 'attack';
   String _selectedEventType = 'kill';
   String _selectedResult = 'point_us';
+  bool _isOpponent = false;
 
   @override
   void initState() {
@@ -1381,7 +1521,7 @@ class _EventInsertSheetState extends ConsumerState<_EventInsertSheet> {
       [_selectedEventType];
 
   Future<void> _save() async {
-    if (_selectedPlayerId == null) return;
+    if (_selectedPlayerId == null && !_isOpponent) return;
     final statsRepo = ref.read(statsRepositoryProvider);
 
     // Shift existing events after insert position
@@ -1397,12 +1537,13 @@ class _EventInsertSheetState extends ConsumerState<_EventInsertSheet> {
       periodId: _selectedPeriodId,
       sequenceNumber: _insertAfterSeq + 1,
       timestamp: DateTime.now(),
-      playerId: _selectedPlayerId!,
+      playerId: _isOpponent ? 'opponent' : _selectedPlayerId!,
       eventCategory: _selectedCategory,
       eventType: _selectedEventType,
       result: _selectedResult,
       scoreUsAfter: 0,
       scoreThemAfter: 0,
+      isOpponent: _isOpponent,
       createdAt: DateTime.now(),
     );
 
@@ -1511,12 +1652,27 @@ class _EventInsertSheetState extends ConsumerState<_EventInsertSheet> {
           ),
           const SizedBox(height: 12),
 
-          // Player
+          // Opponent toggle
+          SwitchListTile(
+            title: const Text('Opponent Event'),
+            value: _isOpponent,
+            onChanged: (v) => setState(() => _isOpponent = v),
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+          ),
+          const SizedBox(height: 8),
+
+          // Player (disabled for opponent events)
           DropdownButtonFormField<String>(
-            value: _selectedPlayerId,
-            decoration: const InputDecoration(labelText: 'Player'),
-            items: playerItems,
-            onChanged: (v) => setState(() => _selectedPlayerId = v),
+            value: _isOpponent ? null : _selectedPlayerId,
+            decoration: InputDecoration(
+              labelText: 'Player',
+              enabled: !_isOpponent,
+            ),
+            items: _isOpponent ? [] : playerItems,
+            onChanged: _isOpponent
+                ? null
+                : (v) => setState(() => _selectedPlayerId = v),
           ),
           const SizedBox(height: 12),
 
