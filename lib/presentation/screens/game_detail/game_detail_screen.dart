@@ -68,10 +68,32 @@ class _GameDetailContentState extends ConsumerState<_GameDetailContent> {
   Future<void> _recalculateScores() async {
     final statsRepo = ref.read(statsRepositoryProvider);
     await statsRepo.recalculateGameScores(widget.gameId);
+
+    // Re-aggregate player game + season stats
+    final aggService = ref.read(statsAggregationServiceProvider);
+    final gameRepo = ref.read(gameRepositoryProvider);
+    final game = await gameRepo.getGame(widget.gameId);
+    if (game != null) {
+      final events = await statsRepo.getActivePlayEventsForGame(widget.gameId);
+      final periods = await gameRepo.getGamePeriods(widget.gameId);
+      final playerIds = events
+          .where((e) => !e.isOpponent)
+          .map((e) => e.playerId)
+          .toSet()
+          .toList();
+      await aggService.aggregateGameStats(
+        game: game,
+        events: events,
+        playerIds: playerIds,
+        periods: periods,
+      );
+    }
+
     // Invalidate providers to refresh UI
     ref.invalidate(gameDetailProvider(widget.gameId));
     ref.invalidate(gamePeriodsProvider(widget.gameId));
     ref.invalidate(gamePlayEventsProvider(widget.gameId));
+    ref.invalidate(gameAllPlayEventsProvider(widget.gameId));
     ref.invalidate(gamePlayerStatsProvider(widget.gameId));
   }
 
@@ -545,8 +567,14 @@ class _PlayByPlayTabState extends ConsumerState<_PlayByPlayTab> {
             return pa.compareTo(pb);
           });
 
-        return ListView.builder(
-          padding: const EdgeInsets.symmetric(vertical: 8),
+        // Collect all active events for insert-position picker
+        final activeEvents = events.where((e) => !e.isDeleted).toList();
+
+        final listView = ListView.builder(
+          padding: EdgeInsets.only(
+            top: 8,
+            bottom: widget.correctionMode ? 80 : 8,
+          ),
           itemCount: sortedPeriodIds.length,
           itemBuilder: (context, index) {
             final periodId = sortedPeriodIds[index];
@@ -594,6 +622,30 @@ class _PlayByPlayTabState extends ConsumerState<_PlayByPlayTab> {
               ],
             );
           },
+        );
+
+        if (!widget.correctionMode) return listView;
+
+        // Correction mode: overlay FAB for inserting events
+        return Stack(
+          children: [
+            listView,
+            Positioned(
+              right: 16,
+              bottom: 16,
+              child: FloatingActionButton(
+                heroTag: 'insert_event_fab',
+                onPressed: () => _showInsertSheet(
+                  context,
+                  activeEvents,
+                  periods,
+                  players,
+                ),
+                tooltip: 'Add Event',
+                child: const Icon(Icons.add),
+              ),
+            ),
+          ],
         );
       },
     );
@@ -808,6 +860,28 @@ class _PlayByPlayTabState extends ConsumerState<_PlayByPlayTab> {
       ),
     );
   }
+
+  void _showInsertSheet(
+    BuildContext context,
+    List<PlayEvent> activeEvents,
+    List<GamePeriod> periods,
+    List<dynamic> players,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => _EventInsertSheet(
+        gameId: widget.gameId,
+        activeEvents: activeEvents,
+        periods: periods,
+        players: players,
+        onSaved: () {
+          ref.invalidate(gameAllPlayEventsProvider(widget.gameId));
+          ref.invalidate(gamePlayEventsProvider(widget.gameId));
+        },
+      ),
+    );
+  }
 }
 
 // =============================================================================
@@ -993,6 +1067,391 @@ class _EventEditSheetState extends ConsumerState<_EventEditSheet> {
                 _selectedEventType = v!;
                 _selectedResult =
                     _actionResults[_selectedEventType] ?? 'rally_continues';
+              });
+            },
+          ),
+          const SizedBox(height: 12),
+
+          // Result
+          DropdownButtonFormField<String>(
+            value: _selectedResult,
+            decoration: const InputDecoration(labelText: 'Result'),
+            items: resultItems,
+            onChanged: (v) => setState(() => _selectedResult = v!),
+          ),
+          const SizedBox(height: 24),
+
+          // Audit trail / correction history
+          _CorrectionHistory(eventId: widget.event.id),
+          const SizedBox(height: 16),
+
+          // Buttons
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              const SizedBox(width: 8),
+              FilledButton(
+                onPressed: _save,
+                child: const Text('Save'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// Correction History (Audit Trail)
+// =============================================================================
+
+/// Displays the correction audit trail for an event.
+class _CorrectionHistory extends ConsumerWidget {
+  final String eventId;
+
+  const _CorrectionHistory({required this.eventId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final statsRepo = ref.read(statsRepositoryProvider);
+
+    return FutureBuilder<List<PlayEvent>>(
+      future: statsRepo.getEventAuditTrail(eventId),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || snapshot.data!.length <= 1) {
+          return const SizedBox.shrink();
+        }
+        final trail = snapshot.data!;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Divider(),
+            Text('Correction History',
+                style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 8),
+            ...trail.map((e) {
+              final reason =
+                  e.metadata['correctionReason'] as String? ?? 'original';
+              final timestamp = e.metadata['correctedAt'] as String? ??
+                  e.metadata['deletedAt'] as String? ??
+                  e.createdAt.toIso8601String();
+              final dateStr = _formatTimestamp(timestamp);
+              final isOriginal = trail.first == e && reason == 'original';
+              final isDeleted = e.isDeleted;
+
+              final label = isOriginal
+                  ? 'Original'
+                  : reason == 'edit'
+                      ? 'Edited'
+                      : reason == 'delete'
+                          ? 'Deleted'
+                          : reason == 'insert'
+                              ? 'Inserted'
+                              : reason;
+
+              final action = e.eventType.replaceAll('_', ' ');
+
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      isDeleted
+                          ? Icons.remove_circle_outline
+                          : isOriginal
+                              ? Icons.circle_outlined
+                              : Icons.edit_outlined,
+                      size: 14,
+                      color: isDeleted
+                          ? StatLineColors.pointLost
+                          : Theme.of(context)
+                              .colorScheme
+                              .onSurface
+                              .withAlpha(128),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        '$label: $action (${e.result.replaceAll('_', ' ')})',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              decoration: isDeleted
+                                  ? TextDecoration.lineThrough
+                                  : null,
+                              color: isDeleted
+                                  ? Theme.of(context)
+                                      .colorScheme
+                                      .onSurface
+                                      .withAlpha(102)
+                                  : null,
+                            ),
+                      ),
+                    ),
+                    Text(
+                      dateStr,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurface
+                                .withAlpha(102),
+                            fontSize: 10,
+                          ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+        );
+      },
+    );
+  }
+
+  String _formatTimestamp(String iso) {
+    try {
+      final dt = DateTime.parse(iso);
+      final months = [
+        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      ];
+      return '${months[dt.month - 1]} ${dt.day} ${dt.hour}:${dt.minute.toString().padLeft(2, '0')}';
+    } catch (_) {
+      return iso;
+    }
+  }
+}
+
+// =============================================================================
+// Event Insert Bottom Sheet
+// =============================================================================
+
+class _EventInsertSheet extends ConsumerStatefulWidget {
+  final String gameId;
+  final List<PlayEvent> activeEvents;
+  final List<GamePeriod> periods;
+  final List<dynamic> players;
+  final VoidCallback onSaved;
+
+  const _EventInsertSheet({
+    required this.gameId,
+    required this.activeEvents,
+    required this.periods,
+    required this.players,
+    required this.onSaved,
+  });
+
+  @override
+  ConsumerState<_EventInsertSheet> createState() => _EventInsertSheetState();
+}
+
+class _EventInsertSheetState extends ConsumerState<_EventInsertSheet> {
+  late String _selectedPeriodId;
+  late int _insertAfterSeq;
+  String? _selectedPlayerId;
+  String _selectedCategory = 'attack';
+  String _selectedEventType = 'kill';
+  String _selectedResult = 'point_us';
+
+  @override
+  void initState() {
+    super.initState();
+    // Default to last period, insert at end
+    _selectedPeriodId = widget.periods.isNotEmpty
+        ? widget.periods.last.id
+        : '';
+    final periodEvents = widget.activeEvents
+        .where((e) => e.periodId == _selectedPeriodId)
+        .toList();
+    _insertAfterSeq = periodEvents.isNotEmpty
+        ? periodEvents.map((e) => e.sequenceNumber).reduce((a, b) => a > b ? a : b)
+        : 0;
+    _selectedPlayerId =
+        widget.players.isNotEmpty ? widget.players.first.id as String : null;
+  }
+
+  List<String> get _availableActions =>
+      _EventEditSheetState._categoryActions[_selectedCategory] ??
+      [_selectedEventType];
+
+  Future<void> _save() async {
+    if (_selectedPlayerId == null) return;
+    final statsRepo = ref.read(statsRepositoryProvider);
+
+    // Shift existing events after insert position
+    await statsRepo.shiftSequenceNumbers(
+      widget.gameId,
+      _selectedPeriodId,
+      _insertAfterSeq,
+    );
+
+    final newEvent = PlayEvent(
+      id: 'ins_${DateTime.now().millisecondsSinceEpoch}',
+      gameId: widget.gameId,
+      periodId: _selectedPeriodId,
+      sequenceNumber: _insertAfterSeq + 1,
+      timestamp: DateTime.now(),
+      playerId: _selectedPlayerId!,
+      eventCategory: _selectedCategory,
+      eventType: _selectedEventType,
+      result: _selectedResult,
+      scoreUsAfter: 0,
+      scoreThemAfter: 0,
+      createdAt: DateTime.now(),
+    );
+
+    await statsRepo.insertCorrectionEvent(newEvent, null);
+
+    widget.onSaved();
+    if (mounted) Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final periodItems = widget.periods
+        .map((p) => DropdownMenuItem<String>(
+              value: p.id,
+              child: Text('Set ${p.periodNumber}'),
+            ))
+        .toList();
+
+    // Build insert-after position items for the selected period
+    final periodEvents = widget.activeEvents
+        .where((e) => e.periodId == _selectedPeriodId)
+        .toList()
+      ..sort((a, b) => a.sequenceNumber.compareTo(b.sequenceNumber));
+
+    final positionItems = <DropdownMenuItem<int>>[
+      const DropdownMenuItem<int>(value: 0, child: Text('Start of set')),
+      ...periodEvents.map((e) => DropdownMenuItem<int>(
+            value: e.sequenceNumber,
+            child: Text('After #${e.sequenceNumber}'),
+          )),
+    ];
+
+    final playerItems = widget.players
+        .map((p) => DropdownMenuItem<String>(
+              value: p.id as String,
+              child: Text('${p.shortName} (#${p.jerseyNumber})'),
+            ))
+        .toList();
+
+    final categoryItems = _EventEditSheetState._categoryActions.keys
+        .map((c) => DropdownMenuItem<String>(
+              value: c,
+              child: Text(c[0].toUpperCase() + c.substring(1)),
+            ))
+        .toList();
+
+    final actionItems = _availableActions
+        .map((a) => DropdownMenuItem<String>(
+              value: a,
+              child: Text(a.replaceAll('_', ' ')),
+            ))
+        .toList();
+
+    final resultItems = ['point_us', 'point_them', 'rally_continues']
+        .map((r) => DropdownMenuItem<String>(
+              value: r,
+              child: Text(r.replaceAll('_', ' ')),
+            ))
+        .toList();
+
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        top: 16,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Add Event',
+              style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 16),
+
+          // Period
+          if (periodItems.isNotEmpty)
+            DropdownButtonFormField<String>(
+              value: _selectedPeriodId,
+              decoration: const InputDecoration(labelText: 'Set'),
+              items: periodItems,
+              onChanged: (v) {
+                setState(() {
+                  _selectedPeriodId = v!;
+                  final evts = widget.activeEvents
+                      .where((e) => e.periodId == _selectedPeriodId)
+                      .toList();
+                  _insertAfterSeq = evts.isNotEmpty
+                      ? evts
+                          .map((e) => e.sequenceNumber)
+                          .reduce((a, b) => a > b ? a : b)
+                      : 0;
+                });
+              },
+            ),
+          const SizedBox(height: 12),
+
+          // Insert position
+          DropdownButtonFormField<int>(
+            value: positionItems.any((i) => i.value == _insertAfterSeq)
+                ? _insertAfterSeq
+                : (positionItems.isNotEmpty ? positionItems.last.value : 0),
+            decoration: const InputDecoration(labelText: 'Insert Position'),
+            items: positionItems,
+            onChanged: (v) => setState(() => _insertAfterSeq = v ?? 0),
+          ),
+          const SizedBox(height: 12),
+
+          // Player
+          DropdownButtonFormField<String>(
+            value: _selectedPlayerId,
+            decoration: const InputDecoration(labelText: 'Player'),
+            items: playerItems,
+            onChanged: (v) => setState(() => _selectedPlayerId = v),
+          ),
+          const SizedBox(height: 12),
+
+          // Category
+          DropdownButtonFormField<String>(
+            value: _selectedCategory,
+            decoration: const InputDecoration(labelText: 'Category'),
+            items: categoryItems,
+            onChanged: (v) {
+              setState(() {
+                _selectedCategory = v!;
+                final actions = _availableActions;
+                if (!actions.contains(_selectedEventType)) {
+                  _selectedEventType = actions.first;
+                  _selectedResult =
+                      _EventEditSheetState._actionResults[_selectedEventType] ??
+                          'rally_continues';
+                }
+              });
+            },
+          ),
+          const SizedBox(height: 12),
+
+          // Action
+          DropdownButtonFormField<String>(
+            value: _availableActions.contains(_selectedEventType)
+                ? _selectedEventType
+                : _availableActions.first,
+            decoration: const InputDecoration(labelText: 'Action'),
+            items: actionItems,
+            onChanged: (v) {
+              setState(() {
+                _selectedEventType = v!;
+                _selectedResult =
+                    _EventEditSheetState._actionResults[_selectedEventType] ??
+                        'rally_continues';
               });
             },
           ),
