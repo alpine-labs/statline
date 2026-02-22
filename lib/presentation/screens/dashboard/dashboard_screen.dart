@@ -8,6 +8,8 @@ import '../../widgets/stat_card.dart';
 import '../../widgets/sport_icon.dart';
 import '../../../core/theme/colors.dart';
 import '../../../domain/models/game.dart';
+import '../../../domain/models/team.dart';
+import '../../../domain/models/season.dart';
 import '../game_detail/game_detail_screen.dart';
 
 class DashboardScreen extends ConsumerWidget {
