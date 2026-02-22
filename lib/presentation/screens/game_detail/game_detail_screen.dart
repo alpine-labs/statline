@@ -12,8 +12,9 @@ import '../../providers/team_providers.dart';
 /// Game Detail Screen with Box Score and Play-by-Play tabs.
 class GameDetailScreen extends ConsumerWidget {
   final String gameId;
+  final int initialTabIndex;
 
-  const GameDetailScreen({super.key, required this.gameId});
+  const GameDetailScreen({super.key, required this.gameId, this.initialTabIndex = 0});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -35,7 +36,7 @@ class GameDetailScreen extends ConsumerWidget {
             body: const Center(child: Text('Game not found')),
           );
         }
-        return _GameDetailContent(game: game, gameId: gameId);
+        return _GameDetailContent(game: game, gameId: gameId, initialTabIndex: initialTabIndex);
       },
     );
   }
@@ -44,8 +45,9 @@ class GameDetailScreen extends ConsumerWidget {
 class _GameDetailContent extends ConsumerStatefulWidget {
   final Game game;
   final String gameId;
+  final int initialTabIndex;
 
-  const _GameDetailContent({required this.game, required this.gameId});
+  const _GameDetailContent({required this.game, required this.gameId, this.initialTabIndex = 0});
 
   @override
   ConsumerState<_GameDetailContent> createState() =>
@@ -138,6 +140,7 @@ class _GameDetailContentState extends ConsumerState<_GameDetailContent> {
             : Theme.of(context).colorScheme.onSurface;
 
     return DefaultTabController(
+      initialIndex: widget.initialTabIndex,
       length: 2,
       child: Scaffold(
         appBar: AppBar(

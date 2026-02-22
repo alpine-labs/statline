@@ -438,7 +438,7 @@ class DashboardScreen extends ConsumerWidget {
                         context,
                         MaterialPageRoute(
                           builder: (_) =>
-                              GameDetailScreen(gameId: game.id),
+                              GameDetailScreen(gameId: game.id, initialTabIndex: 1),
                         ),
                       );
                     },
