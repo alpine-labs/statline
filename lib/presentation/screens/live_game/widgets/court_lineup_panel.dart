@@ -628,6 +628,7 @@ class CourtLineupPanel extends StatelessWidget {
 
     final box = context.findRenderObject() as RenderBox;
     final position = box.localToGlobal(Offset.zero);
+    final navigator = Navigator.of(context);
     showMenu<String>(
       context: context,
       position: RelativeRect.fromLTRB(
@@ -645,7 +646,7 @@ class CourtLineupPanel extends StatelessWidget {
         case 'libero_in':
           onLiberoIn?.call(player.id);
         case 'sub_out':
-          _showPickBenchPlayerDialog(context, player);
+          _showPickBenchPlayerDialog(navigator.context, player);
       }
     });
   }
@@ -665,6 +666,7 @@ class CourtLineupPanel extends StatelessWidget {
 
     final box = context.findRenderObject() as RenderBox;
     final position = box.localToGlobal(Offset.zero);
+    final navigator = Navigator.of(context);
     showMenu<String>(
       context: context,
       position: RelativeRect.fromLTRB(
@@ -677,7 +679,7 @@ class CourtLineupPanel extends StatelessWidget {
     ).then((value) {
       if (value == null) return;
       if (value == 'sub_in') {
-        _showPickCourtPlayerDialog(context, player);
+        _showPickCourtPlayerDialog(navigator.context, player);
       }
     });
   }
