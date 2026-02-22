@@ -15,11 +15,10 @@ import '../../../domain/sports/volleyball/volleyball_stats.dart';
 import '../../../core/constants/sport_config.dart';
 import '../../../core/theme/app_theme.dart';
 import 'widgets/scoreboard_widget.dart';
-import 'widgets/player_grid.dart';
 import 'widgets/action_palette.dart';
 import 'widgets/undo_bar.dart';
-import 'widgets/rotation_indicator.dart';
 import 'widgets/lineup_setup_sheet.dart';
+import 'widgets/court_lineup_panel.dart';
 
 class LiveGameScreen extends ConsumerStatefulWidget {
   const LiveGameScreen({super.key});
@@ -162,29 +161,18 @@ class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
                     ),
                     const Divider(height: 1, color: Color(0xFF333333)),
 
-                    // Rotation indicator
-                    RotationIndicator(
-                      currentRotation: liveState.currentRotation ?? 1,
-                      onRotateForward: () => ref
-                          .read(liveGameStateProvider.notifier)
-                          .rotateForward(),
-                      onRotateBackward: () => ref
-                          .read(liveGameStateProvider.notifier)
-                          .rotateBackward(),
-                      serverName: _getServerDisplayName(liveState),
-                      serverNumber: _getServerNumber(liveState),
-                    ),
-                    const Divider(height: 1, color: Color(0xFF333333)),
-
-                    // Player grid
+                    // Court lineup panel (replaces RotationIndicator + PlayerGrid)
                     Expanded(
-                      child: PlayerGrid(
-                        players: liveState.roster,
+                      child: CourtLineupPanel(
+                        currentRotation: liveState.currentRotation ?? 1,
+                        lineup: liveState.lineup,
+                        roster: liveState.roster,
                         selectedPlayerId: liveState.selectedPlayerId,
                         liberoPlayerId: liveState.liberoPlayerId,
                         liberoIsIn: liveState.liberoIsIn,
                         liberoReplacedPlayerId:
                             liveState.liberoReplacedPlayerId,
+                        servingTeam: liveState.servingTeam,
                         lastActions: _lastActionBadges,
                         playerStats: _computeAllPlayerStats(liveState),
                         onPlayerSelected: (playerId) {
@@ -192,22 +180,12 @@ class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
                               .read(liveGameStateProvider.notifier)
                               .selectPlayer(playerId);
                         },
-                        onPlayerLongPress: (playerId) {},
-                        onSetLibero: (playerId) {
-                          ref
-                              .read(liveGameStateProvider.notifier)
-                              .setLibero(playerId);
-                        },
-                        onLiberoIn: (replacedPlayerId) {
-                          ref
-                              .read(liveGameStateProvider.notifier)
-                              .liberoIn(replacedPlayerId);
-                        },
-                        onLiberoOut: () {
-                          ref
-                              .read(liveGameStateProvider.notifier)
-                              .liberoOut();
-                        },
+                        onRotateForward: () => ref
+                            .read(liveGameStateProvider.notifier)
+                            .rotateForward(),
+                        onRotateBackward: () => ref
+                            .read(liveGameStateProvider.notifier)
+                            .rotateBackward(),
                       ),
                     ),
 
@@ -555,22 +533,6 @@ class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
       );
     }
     return result;
-  }
-
-  String? _getServerDisplayName(LiveGameState liveState) {
-    final serverId = ref.read(liveGameStateProvider.notifier).getServerPlayerId();
-    if (serverId == null) return null;
-    final player = liveState.roster.where((p) => p.id == serverId);
-    if (player.isEmpty) return null;
-    return player.first.lastName;
-  }
-
-  String? _getServerNumber(LiveGameState liveState) {
-    final serverId = ref.read(liveGameStateProvider.notifier).getServerPlayerId();
-    if (serverId == null) return null;
-    final player = liveState.roster.where((p) => p.id == serverId);
-    if (player.isEmpty) return null;
-    return player.first.jerseyNumber;
   }
 
   void _handleLiberoToggle(
