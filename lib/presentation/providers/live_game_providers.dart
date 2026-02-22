@@ -342,6 +342,16 @@ class LiveGameNotifier extends StateNotifier<LiveGameState> {
     }
   }
 
+  void undoTimeout(bool isUs) {
+    if (isUs) {
+      if (state.timeoutsUs <= 0) return;
+      state = state.copyWith(timeoutsUs: state.timeoutsUs - 1);
+    } else {
+      if (state.timeoutsThem <= 0) return;
+      state = state.copyWith(timeoutsThem: state.timeoutsThem - 1);
+    }
+  }
+
   void recordSubstitution() {
     if (state.subsThisSet >= state.maxSubsPerSet) return;
     state = state.copyWith(subsThisSet: state.subsThisSet + 1);

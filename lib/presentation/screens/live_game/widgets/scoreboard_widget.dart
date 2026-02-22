@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../../domain/models/game_period.dart';
 import '../../../../core/theme/colors.dart';
 import '../../../../core/theme/typography.dart';
 
-/// Pinned scoreboard widget shown at the top during live game.
+/// Compact scoreboard widget — 2-row layout optimized for mobile screen space.
+///
+/// Row 1: Timeout dots | Team name + score | dash | Opponent + score | Timeout dots
+/// Row 2: Set history | sub count | side-out %
 class ScoreboardWidget extends StatelessWidget {
   final String teamName;
   final String opponentName;
@@ -15,11 +19,10 @@ class ScoreboardWidget extends StatelessWidget {
   final int maxTimeouts;
   final VoidCallback? onTimeoutUs;
   final VoidCallback? onTimeoutThem;
+  final VoidCallback? onUndoTimeoutUs;
+  final VoidCallback? onUndoTimeoutThem;
   final int subsThisSet;
   final int maxSubsPerSet;
-  final VoidCallback? onRecordSub;
-  final String? servingTeam;
-  final VoidCallback? onToggleServe;
   final int firstBallSideouts;
   final int totalSideouts;
   final int sideoutOpportunities;
@@ -36,11 +39,10 @@ class ScoreboardWidget extends StatelessWidget {
     this.maxTimeouts = 2,
     this.onTimeoutUs,
     this.onTimeoutThem,
+    this.onUndoTimeoutUs,
+    this.onUndoTimeoutThem,
     this.subsThisSet = 0,
     this.maxSubsPerSet = 15,
-    this.onRecordSub,
-    this.servingTeam,
-    this.onToggleServe,
     this.firstBallSideouts = 0,
     this.totalSideouts = 0,
     this.sideoutOpportunities = 0,
@@ -53,253 +55,156 @@ class ScoreboardWidget extends StatelessWidget {
 
     return Container(
       color: const Color(0xFF1A1A1A),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Column(
         children: [
-          // Team names + current set score
+          // Row 1: Scores with timeout dots on sides
           Row(
             children: [
+              // Us side: timeout dots + score
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
+                child: Row(
                   children: [
-                    Text(
-                      'US',
-                      style: TextStyle(
-                        color: usWinning
-                            ? StatLineColors.pointScored
-                            : Colors.white70,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 1,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '$scoreUs',
-                      style: StatLineTypography.scoreDisplay.copyWith(
-                        color: usWinning
-                            ? StatLineColors.pointScored
-                            : Colors.white,
+                    _buildTimeoutDots(timeoutsUs, maxTimeouts, true),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        children: [
+                          Text(
+                            'US',
+                            style: TextStyle(
+                              color: usWinning
+                                  ? StatLineColors.pointScored
+                                  : Colors.white70,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Text(
+                            '$scoreUs',
+                            style: StatLineTypography.scoreDisplay.copyWith(
+                              color: usWinning
+                                  ? StatLineColors.pointScored
+                                  : Colors.white,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
               ),
-              Column(
-                children: [
-                  Text(
-                    'vs',
-                    style: TextStyle(
-                      color: Colors.white.withAlpha(102),
-                      fontSize: 12,
-                    ),
+              // Center dash
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Text(
+                  '-',
+                  style: StatLineTypography.scoreDisplay.copyWith(
+                    color: Colors.white.withAlpha(77),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '-',
-                    style: StatLineTypography.scoreDisplay.copyWith(
-                      color: Colors.white.withAlpha(77),
-                    ),
-                  ),
-                ],
+                ),
               ),
+              // Them side: score + timeout dots
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
+                child: Row(
                   children: [
-                    Text(
-                      opponentName.length > 12
-                          ? opponentName.substring(0, 12)
-                          : opponentName,
-                      style: TextStyle(
-                        color: themWinning
-                            ? StatLineColors.pointLost
-                            : Colors.white70,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 1,
+                    Expanded(
+                      child: Column(
+                        children: [
+                          Text(
+                            opponentName.length > 10
+                                ? opponentName.substring(0, 10)
+                                : opponentName,
+                            style: TextStyle(
+                              color: themWinning
+                                  ? StatLineColors.pointLost
+                                  : Colors.white70,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            '$scoreThem',
+                            style: StatLineTypography.scoreDisplay.copyWith(
+                              color: themWinning
+                                  ? StatLineColors.pointLost
+                                  : Colors.white,
+                            ),
+                          ),
+                        ],
                       ),
-                      overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '$scoreThem',
-                      style: StatLineTypography.scoreDisplay.copyWith(
-                        color: themWinning
-                            ? StatLineColors.pointLost
-                            : Colors.white,
-                      ),
-                    ),
+                    const SizedBox(width: 8),
+                    _buildTimeoutDots(timeoutsThem, maxTimeouts, false),
                   ],
                 ),
               ),
             ],
           ),
 
-          // Set scores row
-          if (periods.length > 1 || (periods.isNotEmpty && periods.first.scoreUs > 0))
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  for (int i = 0; i < periods.length; i++) ...[
-                    if (i > 0)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: Text(
-                          '|',
-                          style: TextStyle(
-                            color: Colors.white.withAlpha(51),
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
+          const SizedBox(height: 4),
+
+          // Row 2: Set history + subs + side-out stats
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Set history
+              if (periods.length > 1 ||
+                  (periods.isNotEmpty && periods.first.scoreUs > 0))
+                for (int i = 0; i < periods.length; i++) ...[
+                  if (i > 0)
                     Text(
-                      '${periods[i].scoreUs}-${periods[i].scoreThem}',
+                      ' | ',
                       style: TextStyle(
-                        color: i == periods.length - 1
-                            ? Colors.white
-                            : Colors.white.withAlpha(153),
-                        fontSize: 13,
-                        fontWeight: i == periods.length - 1
-                            ? FontWeight.bold
-                            : FontWeight.normal,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          // Timeout indicators
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: GestureDetector(
-                    onTap: onTimeoutUs,
-                    child: _buildTimeoutIndicator(timeoutsUs, maxTimeouts),
-                  ),
-                ),
-                Text(
-                  'TO',
-                  style: TextStyle(
-                    color: Colors.white.withAlpha(102),
-                    fontSize: 11,
-                  ),
-                ),
-                Expanded(
-                  child: GestureDetector(
-                    onTap: onTimeoutThem,
-                    child: _buildTimeoutIndicator(timeoutsThem, maxTimeouts),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Serve indicator
-          if (servingTeam != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: GestureDetector(
-                onTap: onToggleServe,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    if (servingTeam == 'us')
-                      Icon(Icons.sports_volleyball,
-                          size: 14, color: Colors.amber)
-                    else
-                      const SizedBox(width: 14),
-                    const SizedBox(width: 8),
-                    Text(
-                      'SERVE',
-                      style: TextStyle(
-                        color: Colors.white.withAlpha(102),
+                        color: Colors.white.withAlpha(51),
                         fontSize: 11,
-                        fontWeight: FontWeight.w500,
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    if (servingTeam == 'them')
-                      Icon(Icons.sports_volleyball,
-                          size: 14, color: Colors.amber)
-                    else
-                      const SizedBox(width: 14),
-                  ],
-                ),
-              ),
-            ),
-          // Substitution counter
-          Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child: GestureDetector(
-              onTap: onRecordSub,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
                   Text(
-                    'Subs: $subsThisSet/$maxSubsPerSet',
+                    '${periods[i].scoreUs}-${periods[i].scoreThem}',
                     style: TextStyle(
-                      color: _subsColor,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  if (onRecordSub != null && subsThisSet < maxSubsPerSet)
-                    Padding(
-                      padding: const EdgeInsets.only(left: 6),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 1),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withAlpha(26),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Text(
-                          '+1',
-                          style: TextStyle(
-                            color: Colors.white70,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-          // Side-out stats
-          if (sideoutOpportunities > 0)
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    'SO: ${(totalSideouts / sideoutOpportunities * 100).toStringAsFixed(0)}%'
-                    ' ($totalSideouts/$sideoutOpportunities)',
-                    style: TextStyle(
-                      color: Colors.white.withAlpha(179),
+                      color: i == periods.length - 1
+                          ? Colors.white
+                          : Colors.white.withAlpha(128),
                       fontSize: 11,
-                      fontWeight: FontWeight.w500,
+                      fontWeight: i == periods.length - 1
+                          ? FontWeight.bold
+                          : FontWeight.normal,
                     ),
                   ),
-                  if (totalSideouts > 0) ...[
-                    Text(
-                      '  1st: ${(firstBallSideouts / totalSideouts * 100).toStringAsFixed(0)}%',
-                      style: TextStyle(
-                        color: Colors.white.withAlpha(128),
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
                 ],
-              ),
-            ),
+              // Compact sub count
+              if (subsThisSet > 0)
+                Text(
+                  '  S:$subsThisSet',
+                  style: TextStyle(
+                    color: _subsColor,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              // Side-out %
+              if (sideoutOpportunities > 0) ...[
+                Text(
+                  '  SO:${(totalSideouts / sideoutOpportunities * 100).toStringAsFixed(0)}%',
+                  style: TextStyle(
+                    color: Colors.white.withAlpha(153),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                if (totalSideouts > 0)
+                  Text(
+                    ' 1st:${(firstBallSideouts / totalSideouts * 100).toStringAsFixed(0)}%',
+                    style: TextStyle(
+                      color: Colors.white.withAlpha(102),
+                      fontSize: 11,
+                    ),
+                  ),
+              ],
+            ],
+          ),
         ],
       ),
     );
@@ -308,23 +213,54 @@ class ScoreboardWidget extends StatelessWidget {
   Color get _subsColor {
     if (subsThisSet >= maxSubsPerSet) return Colors.red;
     if (subsThisSet > maxSubsPerSet * 0.8) return Colors.yellow;
-    return Colors.white70;
+    return Colors.white.withAlpha(128);
   }
 
-  Widget _buildTimeoutIndicator(int used, int max) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(max, (i) {
-        final isFilled = i < used;
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 2),
-          child: Icon(
-            isFilled ? Icons.circle : Icons.circle_outlined,
-            size: 10,
-            color: isFilled ? Colors.amber : Colors.white38,
-          ),
-        );
-      }),
+  /// Timeout dots: tap to record, long-press to undo.
+  /// Us = amber, Them = red.
+  Widget _buildTimeoutDots(int used, int max, bool isUs) {
+    return GestureDetector(
+      onTap: () {
+        if (isUs) {
+          onTimeoutUs?.call();
+        } else {
+          onTimeoutThem?.call();
+        }
+        HapticFeedback.lightImpact();
+      },
+      onLongPress: () {
+        if (isUs) {
+          onUndoTimeoutUs?.call();
+        } else {
+          onUndoTimeoutThem?.call();
+        }
+        HapticFeedback.mediumImpact();
+      },
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: List.generate(max, (i) {
+          final isFilled = i < used;
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 1),
+            child: Container(
+              width: 10,
+              height: 10,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isFilled
+                    ? (isUs ? Colors.amber : Colors.redAccent)
+                    : Colors.transparent,
+                border: Border.all(
+                  color: isFilled
+                      ? (isUs ? Colors.amber : Colors.redAccent)
+                      : Colors.white38,
+                  width: 1.5,
+                ),
+              ),
+            ),
+          );
+        }),
+      ),
     );
   }
 }

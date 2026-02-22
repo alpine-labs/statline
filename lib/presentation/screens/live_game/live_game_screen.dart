@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import '../../providers/live_game_providers.dart';
@@ -16,7 +17,6 @@ import '../../../core/constants/sport_config.dart';
 import '../../../core/theme/app_theme.dart';
 import 'widgets/scoreboard_widget.dart';
 import 'widgets/action_palette.dart';
-import 'widgets/undo_bar.dart';
 import 'widgets/lineup_setup_sheet.dart';
 import 'widgets/court_lineup_panel.dart';
 
@@ -67,6 +67,24 @@ class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
                 style: const TextStyle(color: Colors.white),
               ),
               actions: [
+                // Undo button with badge showing stack depth
+                if (liveState.undoStack.isNotEmpty)
+                  IconButton(
+                    onPressed: () {
+                      ref
+                          .read(liveGameStateProvider.notifier)
+                          .undoLastEvent();
+                      HapticFeedback.mediumImpact();
+                    },
+                    icon: Badge(
+                      label: Text(
+                        '${liveState.undoStack.length}',
+                        style: const TextStyle(fontSize: 10),
+                      ),
+                      child: const Icon(Icons.undo, color: Colors.orangeAccent),
+                    ),
+                    tooltip: 'Undo last action',
+                  ),
                 // Entry mode toggle
                 SegmentedButton<String>(
                   segments: const [
@@ -125,45 +143,42 @@ class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
                 ),
               ],
             ),
-            body: Stack(
+            body: Column(
               children: [
-                Column(
-                  children: [
-                    // Scoreboard - pinned at top
-                    ScoreboardWidget(
-                      teamName: liveState.game?.teamId ?? 'Us',
-                      opponentName:
-                          liveState.game?.opponentName ?? 'Opponent',
-                      scoreUs: liveState.scoreUs,
-                      scoreThem: liveState.scoreThem,
-                      periods: liveState.periods,
-                      timeoutsUs: liveState.timeoutsUs,
-                      timeoutsThem: liveState.timeoutsThem,
-                      maxTimeouts: liveState.maxTimeoutsPerSet,
-                      onTimeoutUs: () => ref
-                          .read(liveGameStateProvider.notifier)
-                          .callTimeout(true),
-                      onTimeoutThem: () => ref
-                          .read(liveGameStateProvider.notifier)
-                          .callTimeout(false),
-                      subsThisSet: liveState.subsThisSet,
-                      maxSubsPerSet: liveState.maxSubsPerSet,
-                      onRecordSub: () => ref
-                          .read(liveGameStateProvider.notifier)
-                          .recordSubstitution(),
-                      servingTeam: liveState.servingTeam,
-                      onToggleServe: () => ref
-                          .read(liveGameStateProvider.notifier)
-                          .toggleServe(),
-                      firstBallSideouts: liveState.firstBallSideouts,
-                      totalSideouts: liveState.totalSideouts,
-                      sideoutOpportunities: liveState.sideoutOpportunities,
-                    ),
-                    const Divider(height: 1, color: Color(0xFF333333)),
+                // Scoreboard - pinned at top
+                ScoreboardWidget(
+                  teamName: liveState.game?.teamId ?? 'Us',
+                  opponentName:
+                      liveState.game?.opponentName ?? 'Opponent',
+                  scoreUs: liveState.scoreUs,
+                  scoreThem: liveState.scoreThem,
+                  periods: liveState.periods,
+                  timeoutsUs: liveState.timeoutsUs,
+                  timeoutsThem: liveState.timeoutsThem,
+                  maxTimeouts: liveState.maxTimeoutsPerSet,
+                  onTimeoutUs: () => ref
+                      .read(liveGameStateProvider.notifier)
+                      .callTimeout(true),
+                  onTimeoutThem: () => ref
+                      .read(liveGameStateProvider.notifier)
+                      .callTimeout(false),
+                  onUndoTimeoutUs: () => ref
+                      .read(liveGameStateProvider.notifier)
+                      .undoTimeout(true),
+                  onUndoTimeoutThem: () => ref
+                      .read(liveGameStateProvider.notifier)
+                      .undoTimeout(false),
+                  subsThisSet: liveState.subsThisSet,
+                  maxSubsPerSet: liveState.maxSubsPerSet,
+                  firstBallSideouts: liveState.firstBallSideouts,
+                  totalSideouts: liveState.totalSideouts,
+                  sideoutOpportunities: liveState.sideoutOpportunities,
+                ),
+                const Divider(height: 1, color: Color(0xFF333333)),
 
-                    // Court lineup panel (replaces RotationIndicator + PlayerGrid)
-                    Expanded(
-                      child: CourtLineupPanel(
+                // Court lineup panel (replaces RotationIndicator + PlayerGrid)
+                Expanded(
+                  child: CourtLineupPanel(
                         currentRotation: liveState.currentRotation ?? 1,
                         lineup: liveState.lineup,
                         roster: liveState.roster,
@@ -222,29 +237,10 @@ class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
                           );
                         },
                       ),
-                  ],
-                ),
-
-                // Undo bar
-                if (liveState.undoStack.isNotEmpty)
-                  Positioned(
-                    bottom: liveState.selectedPlayerId != null ? 200 : 16,
-                    left: 16,
-                    right: 16,
-                    child: UndoBar(
-                      lastEvent: liveState.undoStack.last,
-                      players: liveState.roster,
-                      onUndo: () {
-                        ref
-                            .read(liveGameStateProvider.notifier)
-                            .undoLastEvent();
-                      },
-                    ),
-                  ),
-              ],
-            ),
-          );
-        },
+                ],
+              ),
+            );
+          },
       ),
     );
   }
@@ -513,6 +509,9 @@ class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
     );
 
     ref.read(liveGameStateProvider.notifier).recordEvent(event);
+
+    // Haptic confirmation
+    HapticFeedback.lightImpact();
 
     // Show action badge on the player button
     final abbr = _actionAbbreviation(type, result);
