@@ -8,6 +8,7 @@ import '../../widgets/stat_card.dart';
 import '../../../export/csv_exporter.dart';
 import '../../../export/share_service.dart';
 import '../../../domain/models/player_stats.dart';
+import '../game_detail/game_detail_screen.dart';
 import 'widgets/line_chart_widget.dart';
 import 'widgets/bar_chart_widget.dart';
 
@@ -407,16 +408,30 @@ class PlayerDetailScreen extends ConsumerWidget {
               rows: games.map((row) {
                 final s = _parseStats(row);
                 final opponent = row['opponent_name'] as String? ?? '?';
-                return DataRow(cells: [
-                  DataCell(Text(opponent)),
-                  DataCell(Text('${s['kills'] ?? 0}')),
-                  DataCell(Text('${s['attack_errors'] ?? s['errors'] ?? 0}')),
-                  DataCell(Text('${s['attack_attempts'] ?? s['totalAttempts'] ?? 0}')),
-                  DataCell(Text(_formatHitPct(s))),
-                  DataCell(Text('${s['assists'] ?? 0}')),
-                  DataCell(Text('${s['aces'] ?? s['serviceAces'] ?? 0}')),
-                  DataCell(Text('${s['digs'] ?? 0}')),
-                ]);
+                final rowGameId = row['game_id'] as String?;
+                return DataRow(
+                  cells: [
+                    DataCell(Text(opponent)),
+                    DataCell(Text('${s['kills'] ?? 0}')),
+                    DataCell(Text('${s['attack_errors'] ?? s['errors'] ?? 0}')),
+                    DataCell(Text('${s['attack_attempts'] ?? s['totalAttempts'] ?? 0}')),
+                    DataCell(Text(_formatHitPct(s))),
+                    DataCell(Text('${s['assists'] ?? 0}')),
+                    DataCell(Text('${s['aces'] ?? s['serviceAces'] ?? 0}')),
+                    DataCell(Text('${s['digs'] ?? 0}')),
+                  ],
+                  onSelectChanged: rowGameId != null
+                      ? (_) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  GameDetailScreen(gameId: rowGameId),
+                            ),
+                          );
+                        }
+                      : null,
+                );
               }).toList(),
             ),
           ),

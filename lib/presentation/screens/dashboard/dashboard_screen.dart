@@ -8,6 +8,7 @@ import '../../widgets/stat_card.dart';
 import '../../widgets/sport_icon.dart';
 import '../../../core/theme/colors.dart';
 import '../../../domain/models/game.dart';
+import '../game_detail/game_detail_screen.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -432,8 +433,16 @@ class DashboardScreen extends ConsumerWidget {
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
-                    onPressed: () => context.go('/stats'),
-                    child: const Text('View Stats →'),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              GameDetailScreen(gameId: game.id),
+                        ),
+                      );
+                    },
+                    child: const Text('View Game →'),
                   ),
                 ),
               ],
@@ -451,6 +460,14 @@ class DashboardScreen extends ConsumerWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => GameDetailScreen(gameId: game.id),
+            ),
+          );
+        },
         leading: Container(
           width: 40,
           height: 40,

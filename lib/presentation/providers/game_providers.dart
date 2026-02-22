@@ -1,5 +1,64 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/models/game.dart';
+import '../../domain/models/game_period.dart';
+import '../../domain/models/play_event.dart';
+import '../../domain/models/player_stats.dart';
+import '../../data/repositories/game_repository.dart';
+import '../../data/repositories/stats_repository.dart';
+import '../../data/database/app_database.dart';
+
+// ── Repository Providers ─────────────────────────────────────────────────────
+
+final gameRepositoryProvider = Provider<GameRepository>((ref) {
+  return GameRepository(AppDatabase.getInstance());
+});
+
+// ── Game Detail Providers ────────────────────────────────────────────────────
+
+/// Fetches a single game by ID from the database, falling back to in-memory.
+final gameDetailProvider =
+    FutureProvider.family<Game?, String>((ref, gameId) async {
+  final repo = ref.read(gameRepositoryProvider);
+  final dbGame = await repo.getGame(gameId);
+  if (dbGame != null) return dbGame;
+  // Fallback: search in-memory games list
+  final gamesAsync = ref.read(gamesProvider);
+  return gamesAsync.whenOrNull(
+    data: (games) {
+      try {
+        return games.firstWhere((g) => g.id == gameId);
+      } catch (_) {
+        return null;
+      }
+    },
+  );
+});
+
+/// Fetches game periods (sets) for a game.
+final gamePeriodsProvider =
+    FutureProvider.family<List<GamePeriod>, String>((ref, gameId) async {
+  final repo = ref.read(gameRepositoryProvider);
+  return repo.getGamePeriods(gameId);
+});
+
+/// Fetches per-player game stats (box score data).
+final gamePlayerStatsProvider =
+    FutureProvider.family<List<PlayerGameStatsModel>, String>(
+        (ref, gameId) async {
+  final statsRepo = ref.read(_statsRepoForGameDetail);
+  return statsRepo.getAllPlayerGameStats(gameId);
+});
+
+/// Fetches active play events for a game (play-by-play).
+final gamePlayEventsProvider =
+    FutureProvider.family<List<PlayEvent>, String>((ref, gameId) async {
+  final statsRepo = ref.read(_statsRepoForGameDetail);
+  return statsRepo.getActivePlayEventsForGame(gameId);
+});
+
+final _statsRepoForGameDetail = Provider<StatsRepository>((ref) {
+  return StatsRepository(AppDatabase.getInstance());
+});
 
 // ── Mock data ────────────────────────────────────────────────────────────────
 
