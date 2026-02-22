@@ -7,8 +7,10 @@ import '../../providers/team_providers.dart';
 import '../../providers/game_providers.dart';
 import '../../providers/stats_providers.dart';
 import '../../../domain/models/game.dart';
+import '../../../domain/models/game_lineup.dart';
 import '../../../domain/models/player.dart';
 import '../../../domain/models/play_event.dart';
+import '../../../domain/models/roster_entry.dart';
 import '../../../domain/sports/volleyball/volleyball_stats.dart';
 import '../../../core/constants/sport_config.dart';
 import '../../../core/theme/app_theme.dart';
@@ -17,6 +19,7 @@ import 'widgets/player_grid.dart';
 import 'widgets/action_palette.dart';
 import 'widgets/undo_bar.dart';
 import 'widgets/rotation_indicator.dart';
+import 'widgets/lineup_setup_sheet.dart';
 
 class LiveGameScreen extends ConsumerStatefulWidget {
   const LiveGameScreen({super.key});
@@ -169,6 +172,7 @@ class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
                           .read(liveGameStateProvider.notifier)
                           .rotateBackward(),
                       serverName: _getServerDisplayName(liveState),
+                      serverNumber: _getServerNumber(liveState),
                     ),
                     const Divider(height: 1, color: Color(0xFF333333)),
 
@@ -389,7 +393,7 @@ class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
                   child: const Text('Cancel'),
                 ),
                 FilledButton(
-                  onPressed: () {
+                  onPressed: () async {
                     if (opponentController.text.isEmpty) return;
                     Navigator.pop(context);
                     final now = DateTime.now();
@@ -417,6 +421,16 @@ class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
                         .whereType<Player>()
                         .toList();
 
+                    // Show lineup setup for volleyball
+                    List<GameLineup>? lineup;
+                    if (team.sport == 'volleyball' && mounted) {
+                      lineup = await _showLineupSetup(context, roster, game.id);
+                      if (lineup == null) {
+                        // User cancelled lineup setup
+                        return;
+                      }
+                    }
+
                     ref
                         .read(liveGameStateProvider.notifier)
                         .startGame(
@@ -426,6 +440,7 @@ class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
                               ? SportConfig.volleyballSubLimitForLevel(
                                   team.level ?? 'Club')
                               : null,
+                          lineup: lineup,
                         );
                   },
                   child: const Text('Start'),
@@ -435,6 +450,25 @@ class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
           },
         );
       },
+    );
+  }
+
+  Future<List<GameLineup>?> _showLineupSetup(
+    BuildContext context,
+    List<dynamic> roster,
+    String gameId,
+  ) async {
+    final rosterEntries = roster.whereType<RosterEntry>().toList();
+    
+    return await showModalBottomSheet<List<GameLineup>>(
+      context: context,
+      isScrollControlled: true,
+      isDismissible: false,
+      enableDrag: false,
+      builder: (context) => LineupSetupSheet(
+        roster: rosterEntries,
+        gameId: gameId,
+      ),
     );
   }
 
@@ -520,7 +554,15 @@ class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
     if (serverId == null) return null;
     final player = liveState.roster.where((p) => p.id == serverId);
     if (player.isEmpty) return null;
-    return '#${player.first.jerseyNumber} ${player.first.lastName}';
+    return player.first.lastName;
+  }
+
+  String? _getServerNumber(LiveGameState liveState) {
+    final serverId = ref.read(liveGameStateProvider.notifier).getServerPlayerId();
+    if (serverId == null) return null;
+    final player = liveState.roster.where((p) => p.id == serverId);
+    if (player.isEmpty) return null;
+    return '${player.first.jerseyNumber}';
   }
 
   void _handleLiberoToggle(

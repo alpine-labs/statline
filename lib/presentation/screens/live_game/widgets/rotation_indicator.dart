@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
 /// Compact rotation indicator showing current volleyball rotation (1-6).
+/// Displays the current rotation number and server information.
 class RotationIndicator extends StatelessWidget {
   final int currentRotation;
   final VoidCallback? onRotateForward;
   final VoidCallback? onRotateBackward;
   final String? serverName;
+  final String? serverNumber;
 
   const RotationIndicator({
     super.key,
@@ -13,6 +15,7 @@ class RotationIndicator extends StatelessWidget {
     this.onRotateForward,
     this.onRotateBackward,
     this.serverName,
+    this.serverNumber,
   });
 
   @override
@@ -59,13 +62,22 @@ class RotationIndicator extends StatelessWidget {
               size: 20,
             ),
           ),
-          if (serverName != null) ...[
+          if (serverName != null || serverNumber != null) ...[
             const SizedBox(width: 12),
+            Icon(
+              Icons.sports_volleyball,
+              color: Colors.white54,
+              size: 14,
+            ),
+            const SizedBox(width: 4),
             Text(
-              'Srv: $serverName',
+              serverNumber != null && serverName != null
+                  ? '#$serverNumber $serverName'
+                  : serverName ?? '#$serverNumber',
               style: const TextStyle(
-                color: Colors.white54,
-                fontSize: 11,
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ],
