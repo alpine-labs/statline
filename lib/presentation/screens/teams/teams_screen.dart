@@ -359,7 +359,7 @@ class TeamsScreen extends ConsumerWidget {
                         DropdownMenuItem(
                             value: 'Youth', child: Text('Youth')),
                         DropdownMenuItem(
-                            value: 'Club', child: Text('Club')),
+                            value: 'Club', child: Text('Club / Travel')),
                         DropdownMenuItem(
                             value: 'High School',
                             child: Text('High School')),
