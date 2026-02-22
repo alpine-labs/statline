@@ -4,7 +4,6 @@ import '../../providers/team_providers.dart';
 import '../../widgets/sport_icon.dart';
 import '../../../domain/models/team.dart';
 import 'edit_team_screen.dart';
-import 'roster_screen.dart';
 import 'team_detail_screen.dart';
 import 'season_screen.dart';
 

@@ -869,8 +869,8 @@ class _PlayByPlayTabState extends ConsumerState<_PlayByPlayTab> {
     int? prevRotation;
     for (var i = 0; i < events.length; i++) {
       final event = events[i];
-      final rotation = event.metadata?['rotation'] as int?;
-      final servingTeam = event.metadata?['servingTeam'] as String?;
+      final rotation = event.metadata['rotation'] as int?;
+      final servingTeam = event.metadata['servingTeam'] as String?;
       if (rotation != null && rotation != prevRotation) {
         widgets.add(
             _buildRotationDivider(context, rotation, servingTeam ?? 'them'));

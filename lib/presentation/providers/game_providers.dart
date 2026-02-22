@@ -155,7 +155,7 @@ PlayEvent _evt(
     isOpponent: isOpponent,
     metadata: (rotation != null || servingTeam != null)
         ? {'rotation': rotation, 'servingTeam': servingTeam}
-        : null,
+        : const {},
     createdAt: _now,
   );
 }
