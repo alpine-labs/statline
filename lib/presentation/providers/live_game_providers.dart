@@ -347,6 +347,26 @@ class LiveGameNotifier extends StateNotifier<LiveGameState> {
     state = state.copyWith(subsThisSet: state.subsThisSet + 1);
   }
 
+  /// Swaps a court player out and a bench player in, updating the lineup.
+  /// Also increments the substitution counter.
+  void substitutePlayer({
+    required String playerOutId,
+    required String playerInId,
+  }) {
+    if (state.subsThisSet >= state.maxSubsPerSet) return;
+    final updatedLineup = state.lineup.map((entry) {
+      if (entry.playerId == playerOutId) {
+        return entry.copyWith(playerId: playerInId);
+      }
+      return entry;
+    }).toList();
+    state = state.copyWith(
+      lineup: updatedLineup,
+      subsThisSet: state.subsThisSet + 1,
+      selectedPlayerId: () => null,
+    );
+  }
+
   void toggleServe() {
     final current = state.servingTeam ?? 'us';
     state = state.copyWith(

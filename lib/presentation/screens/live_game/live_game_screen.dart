@@ -186,6 +186,24 @@ class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
                         onRotateBackward: () => ref
                             .read(liveGameStateProvider.notifier)
                             .rotateBackward(),
+                        onSubstitute: (playerOutId, playerInId) {
+                          ref
+                              .read(liveGameStateProvider.notifier)
+                              .substitutePlayer(
+                                playerOutId: playerOutId,
+                                playerInId: playerInId,
+                              );
+                        },
+                        onLiberoIn: (replacedPlayerId) {
+                          ref
+                              .read(liveGameStateProvider.notifier)
+                              .liberoIn(replacedPlayerId);
+                        },
+                        onLiberoOut: () {
+                          ref
+                              .read(liveGameStateProvider.notifier)
+                              .liberoOut();
+                        },
                       ),
                     ),
 

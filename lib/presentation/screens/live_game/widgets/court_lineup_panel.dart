@@ -27,6 +27,9 @@ class CourtLineupPanel extends StatelessWidget {
   final ValueChanged<String> onPlayerSelected;
   final VoidCallback onRotateForward;
   final VoidCallback onRotateBackward;
+  final void Function(String playerOutId, String playerInId)? onSubstitute;
+  final ValueChanged<String>? onLiberoIn;
+  final VoidCallback? onLiberoOut;
 
   const CourtLineupPanel({
     super.key,
@@ -43,28 +46,53 @@ class CourtLineupPanel extends StatelessWidget {
     required this.onPlayerSelected,
     required this.onRotateForward,
     required this.onRotateBackward,
+    this.onSubstitute,
+    this.onLiberoIn,
+    this.onLiberoOut,
   });
 
   /// Finds which player is at a given court position based on current rotation.
   /// 
   /// Formula: Player at court position P has startingRotation = ((R + P - 2) % 6) + 1
   /// where R = currentRotation, P = court position (1-6)
+  /// 
+  /// When the libero is in, the replaced player is swapped out and the libero
+  /// takes their court position.
   Player? _getPlayerAtPosition(int courtPosition) {
     final startingRot = ((currentRotation + courtPosition - 2) % 6) + 1;
     try {
       final lineupEntry = lineup.firstWhere(
         (l) => l.startingRotation == startingRot,
       );
-      return roster.firstWhere((p) => p.id == lineupEntry.playerId);
+      final normalPlayer = roster.firstWhere((p) => p.id == lineupEntry.playerId);
+      // If the libero is in and this position's player was replaced, show the libero
+      if (liberoIsIn &&
+          liberoReplacedPlayerId == normalPlayer.id &&
+          liberoPlayerId != null) {
+        return roster.firstWhere((p) => p.id == liberoPlayerId);
+      }
+      return normalPlayer;
     } catch (_) {
       return null;
     }
   }
 
-  /// Returns players on the bench (not in the lineup)
+  /// Returns players on the bench (not in the lineup).
+  /// When the libero is in, the replaced player moves to the bench and the
+  /// libero is removed from the bench (since they're on court).
   List<Player> _getBenchPlayers() {
     final lineupPlayerIds = lineup.map((l) => l.playerId).toSet();
-    return roster.where((p) => !lineupPlayerIds.contains(p.id)).toList();
+    final bench = roster.where((p) => !lineupPlayerIds.contains(p.id)).toList();
+    if (liberoIsIn && liberoPlayerId != null && liberoReplacedPlayerId != null) {
+      // Remove the libero from bench (they're on court now)
+      bench.removeWhere((p) => p.id == liberoPlayerId);
+      // Add the replaced player to bench (they're off court now)
+      final replaced = roster.where((p) => p.id == liberoReplacedPlayerId);
+      if (replaced.isNotEmpty && !bench.any((p) => p.id == liberoReplacedPlayerId)) {
+        bench.add(replaced.first);
+      }
+    }
+    return bench;
   }
 
   @override
@@ -77,19 +105,19 @@ class CourtLineupPanel extends StatelessWidget {
         child: Column(
           children: [
             // On-Court Section
-            _buildOnCourtSection(),
+            _buildOnCourtSection(context),
             
             const Divider(height: 1, color: Color(0xFF333333)),
             
             // Bench Section
-            _buildBenchSection(benchPlayers),
+            _buildBenchSection(context, benchPlayers),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildOnCourtSection() {
+  Widget _buildOnCourtSection(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(12),
       color: const Color(0xFF1A1A1A),
@@ -197,9 +225,9 @@ class CourtLineupPanel extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _buildCourtPositionChip(4, 'LF'),
-              _buildCourtPositionChip(3, 'MF'),
-              _buildCourtPositionChip(2, 'RF'),
+              _buildCourtPositionChip(context, 4, 'LF'),
+              _buildCourtPositionChip(context, 3, 'MF'),
+              _buildCourtPositionChip(context, 2, 'RF'),
             ],
           ),
           
@@ -209,9 +237,9 @@ class CourtLineupPanel extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _buildCourtPositionChip(5, 'LB'),
-              _buildCourtPositionChip(6, 'MB'),
-              _buildCourtPositionChip(1, 'RB\nServe'),
+              _buildCourtPositionChip(context, 5, 'LB'),
+              _buildCourtPositionChip(context, 6, 'MB'),
+              _buildCourtPositionChip(context, 1, 'RB\nServe'),
             ],
           ),
         ],
@@ -219,7 +247,7 @@ class CourtLineupPanel extends StatelessWidget {
     );
   }
 
-  Widget _buildCourtPositionChip(int courtPosition, String posLabel) {
+  Widget _buildCourtPositionChip(BuildContext context, int courtPosition, String posLabel) {
     final player = _getPlayerAtPosition(courtPosition);
     
     if (player == null) {
@@ -282,6 +310,9 @@ class CourtLineupPanel extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         child: InkWell(
           onTap: () => onPlayerSelected(player.id),
+          onLongPress: () => _showCourtPlayerMenu(
+            context, player, courtPosition, isDesignatedLibero,
+          ),
           borderRadius: BorderRadius.circular(8),
           child: Stack(
             children: [
@@ -398,7 +429,7 @@ class CourtLineupPanel extends StatelessWidget {
     );
   }
 
-  Widget _buildBenchSection(List<Player> benchPlayers) {
+  Widget _buildBenchSection(BuildContext context, List<Player> benchPlayers) {
     if (benchPlayers.isEmpty) {
       return const SizedBox.shrink();
     }
@@ -423,7 +454,7 @@ class CourtLineupPanel extends StatelessWidget {
             spacing: 6,
             runSpacing: 6,
             children: benchPlayers.map((player) {
-              return _buildBenchChip(player);
+              return _buildBenchChip(context, player);
             }).toList(),
           ),
         ],
@@ -431,7 +462,7 @@ class CourtLineupPanel extends StatelessWidget {
     );
   }
 
-  Widget _buildBenchChip(Player player) {
+  Widget _buildBenchChip(BuildContext context, Player player) {
     final isSelected = player.id == selectedPlayerId;
     final isDesignatedLibero = player.id == liberoPlayerId;
     final badgeText = lastActions?[player.id];
@@ -457,6 +488,7 @@ class CourtLineupPanel extends StatelessWidget {
       borderRadius: BorderRadius.circular(6),
       child: InkWell(
         onTap: () => onPlayerSelected(player.id),
+        onLongPress: () => _showBenchPlayerMenu(context, player),
         borderRadius: BorderRadius.circular(6),
         child: Stack(
           children: [
@@ -540,6 +572,156 @@ class CourtLineupPanel extends StatelessWidget {
               ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// Gets court players for substitution picker (the 6 on-court players).
+  List<Player> _getCourtPlayers() {
+    final players = <Player>[];
+    for (int pos = 1; pos <= 6; pos++) {
+      final p = _getPlayerAtPosition(pos);
+      if (p != null) players.add(p);
+    }
+    return players;
+  }
+
+  /// Long-press menu for a court player: Sub Out, Libero In/Out
+  void _showCourtPlayerMenu(
+    BuildContext context,
+    Player player,
+    int courtPosition,
+    bool isDesignatedLibero,
+  ) {
+    final items = <PopupMenuEntry<String>>[];
+    final isBackRow = const {1, 5, 6}.contains(courtPosition);
+
+    // Libero out (if this IS the libero and is currently on court)
+    if (isDesignatedLibero && liberoIsIn) {
+      items.add(const PopupMenuItem(
+        value: 'libero_out',
+        child: Text('Libero Out'),
+      ));
+    }
+
+    // Libero in: replace this player with the libero (back row only, not the libero themselves)
+    if (!isDesignatedLibero &&
+        liberoPlayerId != null &&
+        !liberoIsIn &&
+        isBackRow &&
+        !player.positions.contains('L')) {
+      items.add(const PopupMenuItem(
+        value: 'libero_in',
+        child: Text('Libero In (replace)'),
+      ));
+    }
+
+    // Regular sub out
+    if (onSubstitute != null) {
+      items.add(const PopupMenuItem(
+        value: 'sub_out',
+        child: Text('Sub Out'),
+      ));
+    }
+
+    if (items.isEmpty) return;
+
+    final box = context.findRenderObject() as RenderBox;
+    final position = box.localToGlobal(Offset.zero);
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        position.dx,
+        position.dy,
+        position.dx + 1,
+        position.dy + 1,
+      ),
+      items: items,
+    ).then((value) {
+      if (value == null) return;
+      switch (value) {
+        case 'libero_out':
+          onLiberoOut?.call();
+        case 'libero_in':
+          onLiberoIn?.call(player.id);
+        case 'sub_out':
+          _showPickBenchPlayerDialog(context, player);
+      }
+    });
+  }
+
+  /// Long-press menu for a bench player: Sub In, or Libero In
+  void _showBenchPlayerMenu(BuildContext context, Player player) {
+    final items = <PopupMenuEntry<String>>[];
+
+    if (onSubstitute != null) {
+      items.add(const PopupMenuItem(
+        value: 'sub_in',
+        child: Text('Sub In'),
+      ));
+    }
+
+    if (items.isEmpty) return;
+
+    final box = context.findRenderObject() as RenderBox;
+    final position = box.localToGlobal(Offset.zero);
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        position.dx,
+        position.dy,
+        position.dx + 1,
+        position.dy + 1,
+      ),
+      items: items,
+    ).then((value) {
+      if (value == null) return;
+      if (value == 'sub_in') {
+        _showPickCourtPlayerDialog(context, player);
+      }
+    });
+  }
+
+  /// Dialog to pick which bench player subs in for a court player being subbed out.
+  void _showPickBenchPlayerDialog(BuildContext context, Player playerOut) {
+    final benchPlayers = _getBenchPlayers()
+        .where((p) => p.id != liberoPlayerId)
+        .toList();
+    if (benchPlayers.isEmpty) return;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: Text('Sub in for #${playerOut.jerseyNumber} ${playerOut.lastName}?'),
+        children: benchPlayers.map((p) => SimpleDialogOption(
+          onPressed: () {
+            Navigator.pop(ctx);
+            onSubstitute?.call(playerOut.id, p.id);
+          },
+          child: Text('#${p.jerseyNumber} ${p.lastName}'),
+        )).toList(),
+      ),
+    );
+  }
+
+  /// Dialog to pick which court player the bench player replaces.
+  void _showPickCourtPlayerDialog(BuildContext context, Player playerIn) {
+    final courtPlayers = _getCourtPlayers()
+        .where((p) => p.id != liberoPlayerId)
+        .toList();
+    if (courtPlayers.isEmpty) return;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: Text('Replace who with #${playerIn.jerseyNumber} ${playerIn.lastName}?'),
+        children: courtPlayers.map((p) => SimpleDialogOption(
+          onPressed: () {
+            Navigator.pop(ctx);
+            onSubstitute?.call(p.id, playerIn.id);
+          },
+          child: Text('#${p.jerseyNumber} ${p.lastName}'),
+        )).toList(),
       ),
     );
   }
