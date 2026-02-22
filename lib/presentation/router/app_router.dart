@@ -6,11 +6,19 @@ import '../screens/stats/season_stats_screen.dart';
 import '../screens/stats/leaderboard_screen.dart';
 import '../screens/teams/teams_screen.dart';
 import '../screens/settings/settings_screen.dart';
+import '../screens/game_detail/game_detail_screen.dart';
 
 /// Application router configuration with bottom tab navigation.
 final GoRouter appRouter = GoRouter(
   initialLocation: '/',
   routes: [
+    GoRoute(
+      path: '/game/:gameId',
+      builder: (context, state) {
+        final gameId = state.pathParameters['gameId']!;
+        return GameDetailScreen(gameId: gameId);
+      },
+    ),
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) =>
           ScaffoldWithNavBar(navigationShell: navigationShell),
