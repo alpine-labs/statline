@@ -26,6 +26,7 @@ class LiveGameState {
   final String? liberoPlayerId;
   final bool liberoIsIn;
   final String? liberoReplacedPlayerId;
+  final String? servingTeam; // 'us' or 'them'
 
   const LiveGameState({
     this.game,
@@ -47,6 +48,7 @@ class LiveGameState {
     this.liberoPlayerId,
     this.liberoIsIn = false,
     this.liberoReplacedPlayerId,
+    this.servingTeam,
   });
 
   factory LiveGameState.initial() => const LiveGameState();
@@ -73,6 +75,7 @@ class LiveGameState {
     String? Function()? liberoPlayerId,
     bool? liberoIsIn,
     String? Function()? liberoReplacedPlayerId,
+    String? Function()? servingTeam,
   }) {
     return LiveGameState(
       game: game != null ? game() : this.game,
@@ -100,6 +103,8 @@ class LiveGameState {
       liberoReplacedPlayerId: liberoReplacedPlayerId != null
           ? liberoReplacedPlayerId()
           : this.liberoReplacedPlayerId,
+      servingTeam:
+          servingTeam != null ? servingTeam() : this.servingTeam,
     );
   }
 }
@@ -132,6 +137,7 @@ class LiveGameNotifier extends StateNotifier<LiveGameState> {
       timeoutsThem: 0,
       subsThisSet: 0,
       maxSubsPerSet: maxSubsPerSet,
+      servingTeam: () => 'us',
     );
   }
 
@@ -140,12 +146,23 @@ class LiveGameNotifier extends StateNotifier<LiveGameState> {
   }
 
   void recordEvent(PlayEvent event) {
-    // Enrich event with current rotation metadata
-    final enrichedEvent = state.currentRotation != null
-        ? event.copyWith(
-            metadata: {...event.metadata, 'rotation': state.currentRotation},
-          )
-        : event;
+    // Enrich event with current rotation and serving team metadata
+    final metadata = {
+      ...event.metadata,
+      if (state.currentRotation != null) 'rotation': state.currentRotation,
+      if (state.servingTeam != null) 'servingTeam': state.servingTeam,
+    };
+    final enrichedEvent = event.copyWith(metadata: metadata);
+
+    // Determine if serving team should toggle (side-out tracking)
+    String? newServingTeam = state.servingTeam;
+    final scoredUs = enrichedEvent.scoreUsAfter > state.scoreUs;
+    final scoredThem = enrichedEvent.scoreThemAfter > state.scoreThem;
+    if (scoredUs && state.servingTeam == 'them') {
+      newServingTeam = 'us'; // side-out
+    } else if (scoredThem && state.servingTeam == 'us') {
+      newServingTeam = 'them'; // side-out
+    }
 
     state = state.copyWith(
       playEvents: [...state.playEvents, enrichedEvent],
@@ -153,6 +170,7 @@ class LiveGameNotifier extends StateNotifier<LiveGameState> {
       scoreUs: enrichedEvent.scoreUsAfter,
       scoreThem: enrichedEvent.scoreThemAfter,
       selectedPlayerId: () => null,
+      servingTeam: () => newServingTeam,
     );
 
     // Update current period score
@@ -212,6 +230,9 @@ class LiveGameNotifier extends StateNotifier<LiveGameState> {
       periodType: 'set',
     );
 
+    // Alternate serve at the start of each new set
+    final newServing = state.servingTeam == 'us' ? 'them' : 'us';
+
     state = state.copyWith(
       periods: [...state.periods, newPeriod],
       currentPeriod: () => newPeriod,
@@ -220,6 +241,7 @@ class LiveGameNotifier extends StateNotifier<LiveGameState> {
       timeoutsUs: 0,
       timeoutsThem: 0,
       subsThisSet: 0,
+      servingTeam: () => newServing,
     );
   }
 
@@ -236,6 +258,13 @@ class LiveGameNotifier extends StateNotifier<LiveGameState> {
   void recordSubstitution() {
     if (state.subsThisSet >= state.maxSubsPerSet) return;
     state = state.copyWith(subsThisSet: state.subsThisSet + 1);
+  }
+
+  void toggleServe() {
+    final current = state.servingTeam ?? 'us';
+    state = state.copyWith(
+      servingTeam: () => current == 'us' ? 'them' : 'us',
+    );
   }
 
   void rotateForward() {

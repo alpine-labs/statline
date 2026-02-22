@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:statline/domain/sports/volleyball/volleyball_plugin.dart';
-import 'package:statline/domain/sports/sport_plugin.dart';
 import 'package:statline/domain/models/game_period.dart';
 import 'package:statline/domain/models/play_event.dart';
 

@@ -149,6 +149,10 @@ class _LiveGameScreenState extends ConsumerState<LiveGameScreen> {
                       onRecordSub: () => ref
                           .read(liveGameStateProvider.notifier)
                           .recordSubstitution(),
+                      servingTeam: liveState.servingTeam,
+                      onToggleServe: () => ref
+                          .read(liveGameStateProvider.notifier)
+                          .toggleServe(),
                     ),
                     const Divider(height: 1, color: Color(0xFF333333)),
 

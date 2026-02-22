@@ -26,7 +26,7 @@ class _SeasonStatsScreenState extends ConsumerState<SeasonStatsScreen> {
   bool _sortAscending = false;
   final Set<String> _selectedPlayerIds = {};
 
-  static const _filters = ['All', 'Hitting', 'Serving', 'Defense', 'Blocking'];
+  static const _filters = ['All', 'Hitting', 'Serving', 'Defense', 'Blocking', 'Passing'];
 
   @override
   Widget build(BuildContext context) {
@@ -225,6 +225,15 @@ class _SeasonStatsScreenState extends ConsumerState<SeasonStatsScreen> {
           const StatsColumnDef(key: 'blockAssists', label: 'BA'),
           const StatsColumnDef(key: 'totalBlocks', label: 'TB'),
         ],
+      'Passing' => [
+          playerCol,
+          gpCol,
+          const StatsColumnDef(key: 'passAttempts', label: 'Rec'),
+          const StatsColumnDef(key: 'passRating', label: 'PR'),
+          const StatsColumnDef(key: 'perfectPassPct', label: 'PP%'),
+          const StatsColumnDef(key: 'receptionErrors', label: 'RE'),
+          const StatsColumnDef(key: 'overpasses', label: 'OP'),
+        ],
       _ => [
           playerCol,
           gpCol,
@@ -279,6 +288,8 @@ class _SeasonStatsScreenState extends ConsumerState<SeasonStatsScreen> {
         'totalBlocks': bs + ba,
         'receptionErrors': totals['receptionErrors'] ?? 0,
         'passAttempts': totals['passAttempts'] ?? 0,
+        'passRating': metrics['pass_rating_avg'] ?? 0.0,
+        'overpasses': totals['overpasses'] ?? 0,
         'serveAttempts': totals['serveAttempts'] ?? 0,
         'perfectPassPct': metrics['perfectPassPct'] ?? 0.0,
         'serveEfficiency': metrics['serveEfficiency'] ?? 0.0,

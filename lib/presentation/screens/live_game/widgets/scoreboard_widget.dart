@@ -18,6 +18,8 @@ class ScoreboardWidget extends StatelessWidget {
   final int subsThisSet;
   final int maxSubsPerSet;
   final VoidCallback? onRecordSub;
+  final String? servingTeam;
+  final VoidCallback? onToggleServe;
 
   const ScoreboardWidget({
     super.key,
@@ -34,6 +36,8 @@ class ScoreboardWidget extends StatelessWidget {
     this.subsThisSet = 0,
     this.maxSubsPerSet = 15,
     this.onRecordSub,
+    this.servingTeam,
+    this.onToggleServe,
   });
 
   @override
@@ -189,6 +193,39 @@ class ScoreboardWidget extends StatelessWidget {
               ],
             ),
           ),
+          // Serve indicator
+          if (servingTeam != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: GestureDetector(
+                onTap: onToggleServe,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (servingTeam == 'us')
+                      Icon(Icons.sports_volleyball,
+                          size: 14, color: Colors.amber)
+                    else
+                      const SizedBox(width: 14),
+                    const SizedBox(width: 8),
+                    Text(
+                      'SERVE',
+                      style: TextStyle(
+                        color: Colors.white.withAlpha(102),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    if (servingTeam == 'them')
+                      Icon(Icons.sports_volleyball,
+                          size: 14, color: Colors.amber)
+                    else
+                      const SizedBox(width: 14),
+                  ],
+                ),
+              ),
+            ),
           // Substitution counter
           Padding(
             padding: const EdgeInsets.only(top: 6),
