@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 class GameLineup {
   final String id;
   final String gameId;
@@ -7,6 +9,7 @@ class GameLineup {
   final int? startingRotation;
   final bool isStarter;
   final String status;
+  final Map<String, dynamic> sportMetadata;
 
   const GameLineup({
     required this.id,
@@ -17,6 +20,7 @@ class GameLineup {
     this.startingRotation,
     this.isStarter = true,
     this.status = 'active',
+    this.sportMetadata = const {},
   });
 
   GameLineup copyWith({
@@ -28,6 +32,7 @@ class GameLineup {
     int? Function()? startingRotation,
     bool? isStarter,
     String? status,
+    Map<String, dynamic>? sportMetadata,
   }) {
     return GameLineup(
       id: id ?? this.id,
@@ -41,6 +46,7 @@ class GameLineup {
           : this.startingRotation,
       isStarter: isStarter ?? this.isStarter,
       status: status ?? this.status,
+      sportMetadata: sportMetadata ?? this.sportMetadata,
     );
   }
 
@@ -54,10 +60,21 @@ class GameLineup {
       'starting_rotation': startingRotation,
       'is_starter': isStarter ? 1 : 0,
       'status': status,
+      'sport_metadata': jsonEncode(sportMetadata),
     };
   }
 
   factory GameLineup.fromMap(Map<String, dynamic> map) {
+    final rawMeta = map['sport_metadata'];
+    Map<String, dynamic> meta = const {};
+    if (rawMeta is String && rawMeta.isNotEmpty) {
+      try {
+        meta = Map<String, dynamic>.from(jsonDecode(rawMeta) as Map);
+      } catch (_) {}
+    } else if (rawMeta is Map) {
+      meta = Map<String, dynamic>.from(rawMeta);
+    }
+
     return GameLineup(
       id: map['id'] as String,
       gameId: map['game_id'] as String,
@@ -67,6 +84,7 @@ class GameLineup {
       startingRotation: map['starting_rotation'] as int?,
       isStarter: map['is_starter'] == 1 || map['is_starter'] == true,
       status: map['status'] as String? ?? 'active',
+      sportMetadata: meta,
     );
   }
 

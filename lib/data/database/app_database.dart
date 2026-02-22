@@ -44,7 +44,7 @@ class AppDatabase extends GeneratedDatabase {
   }
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   List<TableInfo<Table, dynamic>> get allTables => [];
@@ -107,6 +107,7 @@ class AppDatabase extends GeneratedDatabase {
               jersey_number TEXT NOT NULL,
               role TEXT NOT NULL DEFAULT 'reserve',
               is_libero INTEGER NOT NULL DEFAULT 0,
+              sport_metadata TEXT NOT NULL DEFAULT '{}',
               joined_date TEXT NOT NULL
             )
           ''');
@@ -154,7 +155,8 @@ class AppDatabase extends GeneratedDatabase {
               position TEXT NOT NULL,
               starting_rotation INTEGER,
               is_starter INTEGER NOT NULL DEFAULT 1,
-              status TEXT NOT NULL DEFAULT 'active'
+              status TEXT NOT NULL DEFAULT 'active',
+              sport_metadata TEXT NOT NULL DEFAULT '{}'
             )
           ''');
 
@@ -166,7 +168,8 @@ class AppDatabase extends GeneratedDatabase {
               player_in_id TEXT NOT NULL REFERENCES players(id),
               player_out_id TEXT NOT NULL REFERENCES players(id),
               game_clock TEXT,
-              is_libero_replacement INTEGER NOT NULL DEFAULT 0
+              is_libero_replacement INTEGER NOT NULL DEFAULT 0,
+              sport_metadata TEXT NOT NULL DEFAULT '{}'
             )
           ''');
 
@@ -265,12 +268,58 @@ class AppDatabase extends GeneratedDatabase {
               'CREATE INDEX idx_player_season_stats_season ON player_season_stats(season_id)');
           await customStatement(
               'CREATE INDEX idx_sync_queue_pending ON sync_queue(synced_at)');
+          await customStatement(
+              'CREATE INDEX idx_play_events_game_type ON play_events(game_id, event_type)');
+          await customStatement(
+              'CREATE INDEX idx_player_game_stats_game_player ON player_game_stats(game_id, player_id)');
+          await customStatement(
+              'CREATE INDEX idx_games_team_season ON games(team_id, season_id)');
         },
         onUpgrade: (m, from, to) async {
           if (from < 2) {
             await customStatement(
                 'ALTER TABLE players ADD COLUMN email TEXT');
           }
+          if (from < 3) {
+            // Add sport_metadata JSON columns for sport-specific attributes
+            await customStatement(
+                "ALTER TABLE team_rosters ADD COLUMN sport_metadata TEXT NOT NULL DEFAULT '{}'");
+            await customStatement(
+                "ALTER TABLE game_lineups ADD COLUMN sport_metadata TEXT NOT NULL DEFAULT '{}'");
+            await customStatement(
+                "ALTER TABLE substitutions ADD COLUMN sport_metadata TEXT NOT NULL DEFAULT '{}'");
+
+            // Migrate existing volleyball-specific data into sport_metadata
+            await customStatement('''
+              UPDATE team_rosters
+              SET sport_metadata = json_object('isLibero', CASE WHEN is_libero = 1 THEN json('true') ELSE json('false') END)
+              WHERE is_libero = 1
+            ''');
+            await customStatement('''
+              UPDATE game_lineups
+              SET sport_metadata = json_object(
+                'startingRotation', starting_rotation,
+                'battingOrder', batting_order
+              )
+              WHERE starting_rotation IS NOT NULL OR batting_order IS NOT NULL
+            ''');
+            await customStatement('''
+              UPDATE substitutions
+              SET sport_metadata = json_object('isLiberoReplacement', json('true'))
+              WHERE is_libero_replacement = 1
+            ''');
+
+            // Add sport-specific indexes
+            await customStatement(
+                'CREATE INDEX IF NOT EXISTS idx_play_events_game_type ON play_events(game_id, event_type)');
+            await customStatement(
+                'CREATE INDEX IF NOT EXISTS idx_player_game_stats_game_player ON player_game_stats(game_id, player_id)');
+            await customStatement(
+                'CREATE INDEX IF NOT EXISTS idx_games_team_season ON games(team_id, season_id)');
+          }
+        },
+        beforeOpen: (details) async {
+          await customStatement('PRAGMA foreign_keys = ON');
         },
       );
 }

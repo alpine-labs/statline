@@ -321,6 +321,36 @@ void main() {
       expect(p1.id, isNot(equals(p2.id)));
     });
   });
+
+  group('Multi-sport plugin getters', () {
+    test('statFilterCategories has volleyball categories', () {
+      final cats = plugin.statFilterCategories;
+      expect(cats.keys, containsAll(['Hitting', 'Serving', 'Defense', 'Blocking', 'Passing']));
+      expect(cats['Hitting'], contains('kills'));
+    });
+
+    test('playerOverviewStats returns key volleyball stats', () {
+      final stats = plugin.playerOverviewStats;
+      expect(stats, isNotEmpty);
+      final keys = stats.map((s) => s.key).toSet();
+      expect(keys, containsAll(['kills', 'hittingPercentage', 'digs']));
+    });
+
+    test('gameLogColumns excludes games_played', () {
+      final cols = plugin.gameLogColumns;
+      expect(cols, isNotEmpty);
+      expect(cols.map((c) => c.key), isNot(contains('games_played')));
+    });
+
+    test('trendCharts has line and bar chart', () {
+      final charts = plugin.trendCharts;
+      expect(charts.length, 2);
+      expect(charts[0].isBar, isFalse);
+      expect(charts[1].isBar, isTrue);
+      expect(charts[0].statKey, 'hittingPercentage');
+      expect(charts[1].statKey, 'kills');
+    });
+  });
 }
 
 int _eventCounter = 0;

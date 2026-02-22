@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 class Substitution {
   final String id;
   final String gameId;
@@ -6,6 +8,7 @@ class Substitution {
   final String playerOutId;
   final String? gameClock;
   final bool isLiberoReplacement;
+  final Map<String, dynamic> sportMetadata;
 
   const Substitution({
     required this.id,
@@ -15,6 +18,7 @@ class Substitution {
     required this.playerOutId,
     this.gameClock,
     this.isLiberoReplacement = false,
+    this.sportMetadata = const {},
   });
 
   Substitution copyWith({
@@ -25,6 +29,7 @@ class Substitution {
     String? playerOutId,
     String? Function()? gameClock,
     bool? isLiberoReplacement,
+    Map<String, dynamic>? sportMetadata,
   }) {
     return Substitution(
       id: id ?? this.id,
@@ -34,6 +39,7 @@ class Substitution {
       playerOutId: playerOutId ?? this.playerOutId,
       gameClock: gameClock != null ? gameClock() : this.gameClock,
       isLiberoReplacement: isLiberoReplacement ?? this.isLiberoReplacement,
+      sportMetadata: sportMetadata ?? this.sportMetadata,
     );
   }
 
@@ -46,10 +52,21 @@ class Substitution {
       'player_out_id': playerOutId,
       'game_clock': gameClock,
       'is_libero_replacement': isLiberoReplacement ? 1 : 0,
+      'sport_metadata': jsonEncode(sportMetadata),
     };
   }
 
   factory Substitution.fromMap(Map<String, dynamic> map) {
+    final rawMeta = map['sport_metadata'];
+    Map<String, dynamic> meta = const {};
+    if (rawMeta is String && rawMeta.isNotEmpty) {
+      try {
+        meta = Map<String, dynamic>.from(jsonDecode(rawMeta) as Map);
+      } catch (_) {}
+    } else if (rawMeta is Map) {
+      meta = Map<String, dynamic>.from(rawMeta);
+    }
+
     return Substitution(
       id: map['id'] as String,
       gameId: map['game_id'] as String,
@@ -59,6 +76,7 @@ class Substitution {
       gameClock: map['game_clock'] as String?,
       isLiberoReplacement: map['is_libero_replacement'] == 1 ||
           map['is_libero_replacement'] == true,
+      sportMetadata: meta,
     );
   }
 

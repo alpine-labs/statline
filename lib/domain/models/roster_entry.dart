@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'player.dart';
 
 class RosterEntry {
@@ -8,6 +9,7 @@ class RosterEntry {
   final String jerseyNumber;
   final String role;
   final bool isLibero;
+  final Map<String, dynamic> sportMetadata;
   final DateTime joinedDate;
   final Player? player;
 
@@ -19,6 +21,7 @@ class RosterEntry {
     required this.jerseyNumber,
     this.role = 'reserve',
     this.isLibero = false,
+    this.sportMetadata = const {},
     required this.joinedDate,
     this.player,
   });
@@ -31,6 +34,7 @@ class RosterEntry {
     String? jerseyNumber,
     String? role,
     bool? isLibero,
+    Map<String, dynamic>? sportMetadata,
     DateTime? joinedDate,
     Player? Function()? player,
   }) {
@@ -42,6 +46,7 @@ class RosterEntry {
       jerseyNumber: jerseyNumber ?? this.jerseyNumber,
       role: role ?? this.role,
       isLibero: isLibero ?? this.isLibero,
+      sportMetadata: sportMetadata ?? this.sportMetadata,
       joinedDate: joinedDate ?? this.joinedDate,
       player: player != null ? player() : this.player,
     );
@@ -56,11 +61,22 @@ class RosterEntry {
       'jersey_number': jerseyNumber,
       'role': role,
       'is_libero': isLibero ? 1 : 0,
+      'sport_metadata': jsonEncode(sportMetadata),
       'joined_date': joinedDate.toIso8601String(),
     };
   }
 
   factory RosterEntry.fromMap(Map<String, dynamic> map, {Player? player}) {
+    final rawMeta = map['sport_metadata'];
+    Map<String, dynamic> meta = const {};
+    if (rawMeta is String && rawMeta.isNotEmpty) {
+      try {
+        meta = Map<String, dynamic>.from(jsonDecode(rawMeta) as Map);
+      } catch (_) {}
+    } else if (rawMeta is Map) {
+      meta = Map<String, dynamic>.from(rawMeta);
+    }
+
     return RosterEntry(
       id: map['id'] as String,
       teamId: map['team_id'] as String,
@@ -69,6 +85,7 @@ class RosterEntry {
       jerseyNumber: map['jersey_number'] as String,
       role: map['role'] as String? ?? 'reserve',
       isLibero: map['is_libero'] == 1 || map['is_libero'] == true,
+      sportMetadata: meta,
       joinedDate: DateTime.parse(map['joined_date'] as String),
       player: player,
     );
